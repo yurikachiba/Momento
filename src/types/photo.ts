@@ -7,8 +7,6 @@ export interface Photo {
   createdAt: number;
   width: number;
   height: number;
-  /** Firebase Storage path – set when uploaded to cloud */
-  cloudPath?: string;
 }
 
 export interface Album {
