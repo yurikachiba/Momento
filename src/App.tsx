@@ -23,8 +23,12 @@ function App() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [activeAlbumId, setActiveAlbumId] = useState<string | null>(null);
-  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    total: number;
+    done: number;
+    failed: number;
+  } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
@@ -73,38 +77,72 @@ function App() {
     setActiveAlbumId(id);
   }, []);
 
-  // Add photos from file input
+  // Add photos from file input — parallel processing with progress
   const handleAddFiles = useCallback(
     async (files: FileList) => {
-      setLoading(true);
-      try {
-        for (const file of Array.from(files)) {
-          const { blob, thumbnail, width, height } = await processImage(file);
-          const photo: Photo = {
-            id: crypto.randomUUID(),
-            blob,
-            thumbnail,
-            name: file.name.replace(/\.[^.]+$/, ''),
-            albumIds: activeAlbumId ? [activeAlbumId] : [],
-            createdAt: Date.now(),
-            width,
-            height,
-          };
-          await addPhoto(photo);
+      const fileArray = Array.from(files);
+      const total = fileArray.length;
+      if (total === 0) return;
+
+      setUploadProgress({ total, done: 0, failed: 0 });
+
+      const CONCURRENCY = 3;
+      let done = 0;
+      let failed = 0;
+      let cursor = 0;
+
+      const processOne = async () => {
+        while (cursor < fileArray.length) {
+          const idx = cursor++;
+          const file = fileArray[idx];
+          try {
+            const { blob, thumbnail, width, height } = await processImage(file);
+            const photo: Photo = {
+              id: crypto.randomUUID(),
+              blob,
+              thumbnail,
+              name: file.name.replace(/\.[^.]+$/, ''),
+              albumIds: activeAlbumId ? [activeAlbumId] : [],
+              createdAt: Date.now(),
+              width,
+              height,
+            };
+            await addPhoto(photo);
+          } catch {
+            failed++;
+          }
+          done++;
+          setUploadProgress({ total, done, failed });
         }
-        await loadPhotos();
-      } finally {
-        setLoading(false);
-      }
+      };
+
+      const workers = Array.from(
+        { length: Math.min(CONCURRENCY, total) },
+        () => processOne()
+      );
+      await Promise.all(workers);
+      await loadPhotos();
+
+      // Keep the progress visible briefly so user sees completion
+      setTimeout(() => setUploadProgress(null), 800);
     },
     [activeAlbumId, loadPhotos]
+  );
+
+  // Select a photo by finding its index
+  const handleSelectPhoto = useCallback(
+    (photo: Photo) => {
+      const idx = photos.findIndex((p) => p.id === photo.id);
+      if (idx !== -1) setSelectedPhotoIndex(idx);
+    },
+    [photos]
   );
 
   // Delete a photo
   const handleDelete = useCallback(
     async (id: string) => {
       await deletePhoto(id);
-      setSelectedPhoto(null);
+      setSelectedPhotoIndex(null);
       await loadPhotos();
     },
     [loadPhotos]
@@ -120,12 +158,13 @@ function App() {
         : [...photo.albumIds, albumId];
       const updated = { ...photo, albumIds };
       await addPhoto(updated);
-      if (selectedPhoto?.id === photoId) {
-        setSelectedPhoto(updated);
+      // Refresh the current viewer photo data
+      if (selectedPhotoIndex !== null && photos[selectedPhotoIndex]?.id === photoId) {
+        // Photo will be refreshed by loadPhotos
       }
       await loadPhotos();
     },
-    [loadPhotos, selectedPhoto]
+    [loadPhotos, selectedPhotoIndex, photos]
   );
 
   // Open photo picker for current album
@@ -215,17 +254,12 @@ function App() {
       />
 
       <main className="main-content">
-        {loading && (
-          <div className="loading-bar">
-            <div className="loading-bar-inner" />
-          </div>
-        )}
         {activeAlbumId && (
           <button className="add-to-album-btn" onClick={handleOpenPicker}>
             + 既存の写真を追加
           </button>
         )}
-        <PhotoGrid photos={photos} onSelect={setSelectedPhoto} />
+        <PhotoGrid photos={photos} onSelect={handleSelectPhoto} />
       </main>
 
       <AddPhotoButton onFiles={handleAddFiles} />
@@ -249,11 +283,36 @@ function App() {
         />
       )}
 
-      {selectedPhoto && (
+      {uploadProgress && (
+        <div className="upload-overlay">
+          <div className="upload-dialog">
+            <p className="upload-title">写真を追加中…</p>
+            <div className="upload-bar-track">
+              <div
+                className="upload-bar-fill"
+                style={{
+                  width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="upload-count">
+              {uploadProgress.done} / {uploadProgress.total}
+              {uploadProgress.failed > 0 && (
+                <span className="upload-failed">
+                  （{uploadProgress.failed}件失敗）
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {selectedPhotoIndex !== null && photos.length > 0 && (
         <PhotoViewer
-          photo={selectedPhoto}
+          photos={photos}
+          initialIndex={selectedPhotoIndex}
           albums={albums}
-          onClose={() => setSelectedPhoto(null)}
+          onClose={() => setSelectedPhotoIndex(null)}
           onDelete={handleDelete}
           onToggleAlbum={handleToggleAlbum}
         />
