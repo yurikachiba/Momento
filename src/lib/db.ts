@@ -1,6 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Photo, Album } from '../types/photo';
 import { getKey, encryptBlob, decryptToBlob } from './crypto';
+import { reprocessBlob } from './image';
 
 const DB_NAME = 'momento-photos';
 const DB_VERSION = 2;
@@ -157,4 +158,57 @@ export async function deleteAlbum(id: string): Promise<void> {
   }
   await tx.objectStore('albums').delete(id);
   await tx.done;
+}
+
+/**
+ * Re-compress all photos using the current storage mode settings.
+ * This re-encodes each photo's blob and thumbnail to reduce storage.
+ */
+export async function recompressAllPhotos(
+  onProgress?: (done: number, total: number) => void,
+): Promise<number> {
+  const db = await getDB();
+  const all = await db.getAll('photos');
+  const total = all.length;
+  let done = 0;
+
+  for (const record of all) {
+    if (!record.albumIds) record.albumIds = [];
+    // Decrypt if needed to get the raw blob
+    const photo = record.encrypted && getKey()
+      ? await decryptPhotoRecord(record)
+      : record as unknown as Photo;
+
+    const { blob, thumbnail, width, height } = await reprocessBlob(photo.blob);
+    const updated: Photo = { ...photo, blob, thumbnail, width, height };
+
+    if (getKey()) {
+      await db.put('photos', await encryptPhoto(updated));
+    } else {
+      await db.put('photos', updated);
+    }
+    done++;
+    onProgress?.(done, total);
+  }
+  return done;
+}
+
+/**
+ * Estimate total storage used by photos in IndexedDB.
+ */
+export async function estimateStorageUsage(): Promise<{ totalBytes: number; photoCount: number }> {
+  const db = await getDB();
+  const all = await db.getAll('photos');
+  let totalBytes = 0;
+  for (const record of all) {
+    // For encrypted records, blob/thumbnail are ArrayBuffers
+    if (record.encrypted) {
+      if (record.blob instanceof ArrayBuffer) totalBytes += record.blob.byteLength;
+      if (record.thumbnail instanceof ArrayBuffer) totalBytes += record.thumbnail.byteLength;
+    } else {
+      if (record.blob instanceof Blob) totalBytes += record.blob.size;
+      if (record.thumbnail instanceof Blob) totalBytes += record.thumbnail.size;
+    }
+  }
+  return { totalBytes, photoCount: all.length };
 }

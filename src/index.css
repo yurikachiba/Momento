@@ -776,6 +776,82 @@ body {
   color: var(--text-primary);
 }
 
+/* ===== Storage Info ===== */
+.storage-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.storage-size {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.storage-count {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* ===== Storage Mode Options ===== */
+.storage-mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.storage-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.storage-mode-btn:hover {
+  border-color: var(--accent);
+}
+
+.storage-mode-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.storage-mode-btn.active small {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.storage-mode-btn strong {
+  font-size: var(--font-size-base);
+}
+
+.storage-mode-btn small {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.storage-mode-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.recompress-btn {
+  width: 100%;
+}
+
 /* ===== Add to Album Button ===== */
 .add-to-album-btn {
   display: block;
