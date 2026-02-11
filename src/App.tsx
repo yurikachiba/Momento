@@ -17,6 +17,7 @@ import {
   deleteAlbum,
 } from './lib/db';
 import { processImage } from './lib/image';
+import { sanitizeFileName } from './lib/sanitize';
 import type { Photo, Album } from './types/photo';
 
 function App() {
@@ -101,7 +102,7 @@ function App() {
               id: crypto.randomUUID(),
               blob,
               thumbnail,
-              name: file.name.replace(/\.[^.]+$/, ''),
+              name: sanitizeFileName(file.name.replace(/\.[^.]+$/, '')),
               albumIds: activeAlbumId ? [activeAlbumId] : [],
               createdAt: Date.now(),
               width,
