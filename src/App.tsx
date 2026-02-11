@@ -6,6 +6,7 @@ import PhotoPicker from './components/PhotoPicker';
 import CategoryBar from './components/CategoryBar';
 import AddPhotoButton from './components/AddPhotoButton';
 import SettingsMenu from './components/SettingsMenu';
+import PasswordScreen from './components/PasswordScreen';
 import {
   getAllPhotos,
   getPhotosByAlbum,
@@ -15,12 +16,28 @@ import {
   getAllAlbums,
   addAlbum,
   deleteAlbum,
+  encryptAllPhotos,
+  decryptAllPhotos,
 } from './lib/db';
 import { processImage } from './lib/image';
 import { sanitizeFileName } from './lib/sanitize';
+import {
+  isEncryptionEnabled,
+  getCryptoConfig,
+  deriveKey,
+  verifyPassword,
+  setKey,
+  generateSalt,
+  createVerification,
+  saveCryptoConfig,
+  removeCryptoConfig,
+} from './lib/crypto';
 import type { Photo, Album } from './types/photo';
 
+type AppState = 'loading' | 'locked' | 'setup-encryption' | 'ready';
+
 function App() {
+  const [appState, setAppState] = useState<AppState>('loading');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [activeAlbumId, setActiveAlbumId] = useState<string | null>(null);
@@ -36,6 +53,15 @@ function App() {
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('momento-dark') === 'true';
   });
+
+  // Check encryption state on mount
+  useEffect(() => {
+    if (isEncryptionEnabled()) {
+      setAppState('locked');
+    } else {
+      setAppState('ready');
+    }
+  }, []);
 
   // Apply dark mode class
   useEffect(() => {
@@ -61,12 +87,50 @@ function App() {
   }, [activeAlbumId]);
 
   useEffect(() => {
-    loadAlbums();
-  }, [loadAlbums]);
+    if (appState === 'ready') loadAlbums();
+  }, [loadAlbums, appState]);
 
   useEffect(() => {
-    loadPhotos();
+    if (appState === 'ready') loadPhotos();
+  }, [loadPhotos, appState]);
+
+  // --- Encryption handlers ---
+
+  const handleUnlock = useCallback(async (password: string): Promise<boolean> => {
+    const config = getCryptoConfig();
+    if (!config) return false;
+    const key = await deriveKey(password, config.salt);
+    const valid = await verifyPassword(key, config.verifyIv, config.verifyData);
+    if (valid) {
+      setKey(key);
+      setAppState('ready');
+      return true;
+    }
+    return false;
+  }, []);
+
+  const handleSetupEncryption = useCallback(async (password: string): Promise<void> => {
+    const salt = generateSalt();
+    const key = await deriveKey(password, salt);
+    const { iv, data } = await createVerification(key);
+    saveCryptoConfig(salt, iv, data);
+    setKey(key);
+    // Encrypt existing photos
+    await encryptAllPhotos();
+    setAppState('ready');
+    await loadPhotos();
   }, [loadPhotos]);
+
+  const handleRemoveEncryption = useCallback(async () => {
+    await decryptAllPhotos();
+    removeCryptoConfig();
+    setKey(null);
+    await loadPhotos();
+  }, [loadPhotos]);
+
+  const handleStartSetupEncryption = useCallback(() => {
+    setAppState('setup-encryption');
+  }, []);
 
   // Select all photos (clears album selection)
   const handleSelectAll = useCallback(() => {
@@ -124,7 +188,6 @@ function App() {
       await Promise.all(workers);
       await loadPhotos();
 
-      // Keep the progress visible briefly so user sees completion
       setTimeout(() => setUploadProgress(null), 800);
     },
     [activeAlbumId, loadPhotos]
@@ -159,7 +222,6 @@ function App() {
         : [...photo.albumIds, albumId];
       const updated = { ...photo, albumIds };
       await addPhoto(updated);
-      // Refresh the current viewer photo data
       if (selectedPhotoIndex !== null && photos[selectedPhotoIndex]?.id === photoId) {
         // Photo will be refreshed by loadPhotos
       }
@@ -221,6 +283,31 @@ function App() {
     [activeAlbumId, loadAlbums, loadPhotos]
   );
 
+  // --- Password / lock screen ---
+  if (appState === 'loading') {
+    return null;
+  }
+
+  if (appState === 'locked') {
+    return (
+      <PasswordScreen
+        mode="unlock"
+        onUnlock={handleUnlock}
+        onSetup={handleSetupEncryption}
+      />
+    );
+  }
+
+  if (appState === 'setup-encryption') {
+    return (
+      <PasswordScreen
+        mode="setup"
+        onUnlock={handleUnlock}
+        onSetup={handleSetupEncryption}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <Header
@@ -272,6 +359,8 @@ function App() {
             loadPhotos();
             loadAlbums();
           }}
+          onSetupEncryption={handleStartSetupEncryption}
+          onRemoveEncryption={handleRemoveEncryption}
         />
       )}
 
