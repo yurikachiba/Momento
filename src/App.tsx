@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import PhotoGrid from './components/PhotoGrid';
 import PhotoViewer from './components/PhotoViewer';
@@ -20,6 +20,7 @@ import {
   decryptAllPhotos,
 } from './lib/db';
 import { processImage } from './lib/image';
+import { importData } from './lib/sync';
 import { sanitizeFileName } from './lib/sanitize';
 import {
   isEncryptionEnabled,
@@ -38,6 +39,7 @@ import {
   snoozeBackupReminder,
   formatLastBackup,
 } from './lib/storage';
+import { scheduleAutoBackup } from './lib/autobackup';
 import type { Photo, Album } from './types/photo';
 
 type AppState = 'loading' | 'locked' | 'setup-encryption' | 'ready';
@@ -60,6 +62,8 @@ function App() {
     return localStorage.getItem('momento-dark') === 'true';
   });
   const [showBackupReminder, setShowBackupReminder] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const recoveryRef = useRef<HTMLInputElement>(null);
 
   // Check encryption state on mount + request persistent storage
   useEffect(() => {
@@ -95,6 +99,10 @@ function App() {
     // Check backup reminder based on total photo count
     if (!activeAlbumId) {
       setShowBackupReminder(shouldShowBackupReminder(data.length));
+      // Show recovery prompt if the DB is completely empty (possible data clear)
+      if (data.length === 0) {
+        setShowRecovery(true);
+      }
     }
   }, [activeAlbumId]);
 
@@ -199,6 +207,7 @@ function App() {
       );
       await Promise.all(workers);
       await loadPhotos();
+      scheduleAutoBackup();
 
       setTimeout(() => setUploadProgress(null), 800);
     },
@@ -220,6 +229,7 @@ function App() {
       await deletePhoto(id);
       setSelectedPhotoIndex(null);
       await loadPhotos();
+      scheduleAutoBackup();
     },
     [loadPhotos]
   );
@@ -352,6 +362,50 @@ function App() {
         onAddAlbum={handleAddAlbum}
         onDeleteAlbum={handleDeleteAlbum}
       />
+
+      {showRecovery && photos.length === 0 && (
+        <div className="recovery-banner">
+          <div className="recovery-banner-content">
+            <p className="recovery-banner-title">バックアップから復元しますか？</p>
+            <p className="recovery-banner-desc">
+              以前のバックアップZIPファイルがあれば、写真を復元できます。
+            </p>
+            <div className="recovery-banner-actions">
+              <button
+                className="recovery-banner-btn recovery-banner-restore"
+                onClick={() => recoveryRef.current?.click()}
+              >
+                ZIPから復元
+              </button>
+              <button
+                className="recovery-banner-btn recovery-banner-dismiss"
+                onClick={() => setShowRecovery(false)}
+              >
+                新しく始める
+              </button>
+            </div>
+          </div>
+          <input
+            ref={recoveryRef}
+            type="file"
+            accept=".zip"
+            className="hidden-input"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              e.target.value = '';
+              try {
+                await importData(file);
+                setShowRecovery(false);
+                await loadPhotos();
+                await loadAlbums();
+              } catch (err) {
+                alert(err instanceof Error ? err.message : '復元に失敗しました');
+              }
+            }}
+          />
+        </div>
+      )}
 
       {showBackupReminder && (
         <div className="backup-reminder">
