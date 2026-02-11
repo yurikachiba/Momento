@@ -202,6 +202,10 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: normal;
 }
 
 .category-tab.active {
@@ -253,8 +257,7 @@ body {
 }
 
 .icon-option {
-  width: 48px;
-  height: 48px;
+  aspect-ratio: 1;
   border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
@@ -264,6 +267,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  line-height: normal;
 }
 
 .icon-option.selected {
@@ -371,6 +375,7 @@ body {
 .empty-icon {
   font-size: 64px;
   margin-bottom: 16px;
+  line-height: normal;
 }
 
 .empty-state p {
@@ -416,7 +421,7 @@ body {
 
 .fab-icon {
   font-size: 24px;
-  line-height: 1;
+  line-height: normal;
 }
 
 /* ===== Photo Viewer ===== */
@@ -522,7 +527,7 @@ body {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
   font-size: 32px;
-  line-height: 1;
+  line-height: normal;
   cursor: pointer;
   border-radius: 50%;
   display: none;
@@ -596,7 +601,7 @@ body {
 
 .viewer-action-icon {
   font-size: 24px;
-  line-height: 1;
+  line-height: normal;
 }
 
 /* ===== Viewer Menu ===== */
@@ -644,6 +649,7 @@ body {
   font-size: 15px;
   cursor: pointer;
   transition: all 0.2s;
+  line-height: normal;
 }
 
 .album-toggle.active {
@@ -725,6 +731,7 @@ body {
 .settings-btn-icon {
   font-size: 32px;
   flex-shrink: 0;
+  line-height: normal;
 }
 
 .settings-btn-text {
@@ -950,6 +957,26 @@ body {
 @media (min-width: 480px) {
   .photo-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 375px) {
+  .category-tab {
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+  .category-tab.add-tab {
+    padding: 8px 12px;
+    font-size: 18px;
+  }
+  .empty-icon {
+    font-size: 48px;
+  }
+  .icon-picker {
+    gap: 6px;
+  }
+  .icon-option {
+    font-size: 20px;
   }
 }
 
