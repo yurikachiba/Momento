@@ -80,14 +80,15 @@ body {
   z-index: 100;
 }
 
-.header-left, .header-right {
+.header-left {
   width: 48px;
   display: flex;
   align-items: center;
 }
 
 .header-right {
-  justify-content: flex-end;
+  display: flex;
+  align-items: center;
 }
 
 .header-title {
@@ -685,6 +686,29 @@ body {
   align-items: center;
 }
 
+/* ===== Encryption Badge (Header) ===== */
+.encryption-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  border-radius: 50%;
+  background: var(--border);
+  opacity: 0.5;
+  line-height: normal;
+}
+
+.encryption-badge.active {
+  background: #c6f6d5;
+  opacity: 1;
+}
+
+html.dark .encryption-badge.active {
+  background: #22543d;
+}
+
 /* ===== Settings Menu ===== */
 .settings-dialog {
   max-width: 420px;
@@ -966,6 +990,87 @@ html.dark .backup-reminder-dismiss {
 
 .auto-backup-active-btn {
   border-color: #48bb78 !important;
+}
+
+/* ===== Auto-Backup Status Card ===== */
+.auto-backup-status-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--border);
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.auto-backup-status-card.active {
+  background: #c6f6d5;
+  color: #276749;
+}
+
+html.dark .auto-backup-status-card.active {
+  background: #22543d;
+  color: #9ae6b4;
+}
+
+.auto-backup-status-icon {
+  font-size: 16px;
+  line-height: normal;
+}
+
+/* ===== Encryption Status Card (Settings) ===== */
+.encryption-status-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--border);
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.encryption-status-card.active {
+  background: #c6f6d5;
+  color: #276749;
+}
+
+html.dark .encryption-status-card.active {
+  background: #22543d;
+  color: #9ae6b4;
+}
+
+.encryption-status-icon {
+  font-size: 18px;
+  line-height: normal;
+}
+
+.encryption-status-text {
+  font-size: 14px;
+}
+
+/* ===== Backup Encryption Notice ===== */
+.backup-encryption-notice {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  background: #fefcbf;
+  color: #744210;
+  border: 1px solid #ecc94b;
+}
+
+html.dark .backup-encryption-notice {
+  background: #744210;
+  color: #fefcbf;
+  border-color: #975a16;
 }
 
 /* ===== Recovery Banner ===== */
