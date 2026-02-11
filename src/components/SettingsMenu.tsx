@@ -171,79 +171,105 @@ const SettingsMenu: FC<SettingsMenuProps> = ({
         </div>
 
         {/* Auto-Backup Section */}
-        {fsSupported && (
-          <div className="settings-section">
-            <p className="settings-section-title">🔄 自動バックアップ</p>
-            <p className="auto-backup-desc">
-              ローカルフォルダにZIPを自動保存します。ブラウザのデータを消してもファイルは残ります。
-            </p>
-            <div className="settings-actions">
-              {autoBackupOn ? (
-                <>
-                  <button
-                    className="settings-btn auto-backup-active-btn"
-                    onClick={async () => {
-                      setBusy(true);
-                      setStatus('自動バックアップ中...');
-                      const ok = await performAutoBackup((msg) => setStatus(msg));
-                      if (ok) {
-                        markBackupDone();
+        <div className="settings-section">
+          <p className="settings-section-title">🔄 自動バックアップ</p>
+          {fsSupported ? (
+            <>
+              <p className="auto-backup-desc">
+                ローカルフォルダにZIPを自動保存します。ブラウザのデータを消してもファイルは残ります。
+              </p>
+              <div className="settings-actions">
+                {autoBackupOn ? (
+                  <>
+                    <div className="auto-backup-status-card active">
+                      <span className="auto-backup-status-icon">✅</span>
+                      <span>自動バックアップ: 有効</span>
+                    </div>
+                    <button
+                      className="settings-btn auto-backup-active-btn"
+                      onClick={async () => {
+                        setBusy(true);
+                        setStatus('自動バックアップ中...');
+                        const ok = await performAutoBackup((msg) => setStatus(msg));
+                        if (ok) {
+                          markBackupDone();
+                          setTimeout(() => setStatus(null), 2000);
+                        }
+                        setBusy(false);
+                      }}
+                      disabled={busy}
+                    >
+                      <span className="settings-btn-icon">💾</span>
+                      <span className="settings-btn-text">
+                        <strong>今すぐバックアップ</strong>
+                        <small>設定済みフォルダにZIPを保存</small>
+                      </span>
+                    </button>
+                    <button
+                      className="settings-btn"
+                      onClick={async () => {
+                        await disableAutoBackup();
+                        setAutoBackupOn(false);
+                        setStatus('自動バックアップを無効にしました');
                         setTimeout(() => setStatus(null), 2000);
-                      }
-                      setBusy(false);
-                    }}
-                    disabled={busy}
-                  >
-                    <span className="settings-btn-icon">💾</span>
-                    <span className="settings-btn-text">
-                      <strong>今すぐバックアップ</strong>
-                      <small>設定済みフォルダにZIPを保存</small>
-                    </span>
-                  </button>
+                      }}
+                      disabled={busy}
+                    >
+                      <span className="settings-btn-icon">🚫</span>
+                      <span className="settings-btn-text">
+                        <strong>自動バックアップを無効化</strong>
+                        <small>フォルダへの自動保存を停止</small>
+                      </span>
+                    </button>
+                  </>
+                ) : (
                   <button
                     className="settings-btn"
                     onClick={async () => {
-                      await disableAutoBackup();
-                      setAutoBackupOn(false);
-                      setStatus('自動バックアップを無効にしました');
-                      setTimeout(() => setStatus(null), 2000);
+                      const ok = await setupAutoBackup();
+                      if (ok) {
+                        setAutoBackupOn(true);
+                        setStatus('自動バックアップを有効にしました');
+                        setTimeout(() => setStatus(null), 2000);
+                      }
                     }}
                     disabled={busy}
                   >
-                    <span className="settings-btn-icon">🚫</span>
+                    <span className="settings-btn-icon">📂</span>
                     <span className="settings-btn-text">
-                      <strong>自動バックアップを無効化</strong>
-                      <small>フォルダへの自動保存を停止</small>
+                      <strong>自動バックアップを有効化</strong>
+                      <small>バックアップ先フォルダを選択</small>
                     </span>
                   </button>
-                </>
-              ) : (
-                <button
-                  className="settings-btn"
-                  onClick={async () => {
-                    const ok = await setupAutoBackup();
-                    if (ok) {
-                      setAutoBackupOn(true);
-                      setStatus('自動バックアップを有効にしました');
-                      setTimeout(() => setStatus(null), 2000);
-                    }
-                  }}
-                  disabled={busy}
-                >
-                  <span className="settings-btn-icon">📂</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="auto-backup-desc">
+                このブラウザではフォルダ自動保存に対応していません。定期的にZIPをダウンロードして保管してください。
+              </p>
+              <div className="settings-actions">
+                <button className="settings-btn" onClick={handleExport} disabled={busy}>
+                  <span className="settings-btn-icon">📲</span>
                   <span className="settings-btn-text">
-                    <strong>自動バックアップを有効化</strong>
-                    <small>バックアップ先フォルダを選択</small>
+                    <strong>今すぐバックアップ</strong>
+                    <small>ZIPファイルをダウンロード保存</small>
                   </span>
                 </button>
-              )}
+              </div>
+            </>
+          )}
+          {encrypted && (
+            <div className="backup-encryption-notice">
+              ⚠️ バックアップZIPは暗号化されません。安全な場所に保管してください。
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Export/Import Section */}
         <div className="settings-section">
-          <p className="settings-section-title">📦 バックアップ</p>
+          <p className="settings-section-title">📦 エクスポート / インポート</p>
           <div className="settings-actions">
             <button className="settings-btn export-btn" onClick={handleExport} disabled={busy}>
               <span className="settings-btn-icon">📦</span>
@@ -270,6 +296,12 @@ const SettingsMenu: FC<SettingsMenuProps> = ({
         {/* Encryption Section */}
         <div className="settings-section">
           <p className="settings-section-title">🔒 暗号化</p>
+          <div className={`encryption-status-card ${encrypted ? 'active' : ''}`}>
+            <span className="encryption-status-icon">{encrypted ? '🔒' : '🔓'}</span>
+            <span className="encryption-status-text">
+              {encrypted ? '暗号化: 有効（AES-256-GCM）' : '暗号化: 無効'}
+            </span>
+          </div>
           <div className="settings-actions">
             {encrypted ? (
               <button

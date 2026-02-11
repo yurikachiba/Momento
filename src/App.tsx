@@ -336,6 +336,12 @@ function App() {
         title="Momento"
         rightAction={
           <div className="header-actions">
+            <span
+              className={`encryption-badge ${isEncryptionEnabled() ? 'active' : ''}`}
+              title={isEncryptionEnabled() ? '暗号化オン' : '暗号化オフ'}
+            >
+              {isEncryptionEnabled() ? '🔒' : '🔓'}
+            </span>
             <button
               className="btn-icon"
               onClick={() => setShowSettings(true)}
