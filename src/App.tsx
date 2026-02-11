@@ -280,6 +280,7 @@ function App() {
           onDelete={handleDelete}
           onChangeCategory={handleChangeCategory}
           onToggleAlbum={handleToggleAlbum}
+          onPhotoUpdated={loadPhotos}
         />
       )}
     </div>
