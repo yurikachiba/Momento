@@ -11,16 +11,15 @@ interface ExportMetadata {
 }
 
 /**
- * Export all photos and albums as a .zip file and trigger download.
+ * Create a backup ZIP blob (reused by export and Google Drive backup).
  */
-export async function exportData(
+export async function createBackupBlob(
   onProgress?: (done: number, total: number) => void
-): Promise<void> {
+): Promise<Blob> {
   const zip = new JSZip();
   const photos = await getAllPhotos();
   const albums = await getAllAlbums();
 
-  // Metadata (everything except blobs)
   const metadata: ExportMetadata = {
     version: 2,
     exportedAt: Date.now(),
@@ -29,7 +28,6 @@ export async function exportData(
   };
   zip.file('metadata.json', JSON.stringify(metadata));
 
-  // Photo files
   const photosFolder = zip.folder('photos')!;
   const thumbsFolder = zip.folder('thumbs')!;
 
@@ -40,9 +38,17 @@ export async function exportData(
     onProgress?.(i + 1, photos.length);
   }
 
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  return zip.generateAsync({ type: 'blob', compression: 'STORE' });
+}
 
-  // Trigger download
+/**
+ * Export all photos and albums as a .zip file and trigger download.
+ */
+export async function exportData(
+  onProgress?: (done: number, total: number) => void
+): Promise<void> {
+  const blob = await createBackupBlob(onProgress);
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

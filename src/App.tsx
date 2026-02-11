@@ -32,6 +32,12 @@ import {
   saveCryptoConfig,
   removeCryptoConfig,
 } from './lib/crypto';
+import {
+  requestPersistentStorage,
+  shouldShowBackupReminder,
+  snoozeBackupReminder,
+  formatLastBackup,
+} from './lib/storage';
 import type { Photo, Album } from './types/photo';
 
 type AppState = 'loading' | 'locked' | 'setup-encryption' | 'ready';
@@ -53,14 +59,16 @@ function App() {
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('momento-dark') === 'true';
   });
+  const [showBackupReminder, setShowBackupReminder] = useState(false);
 
-  // Check encryption state on mount
+  // Check encryption state on mount + request persistent storage
   useEffect(() => {
     if (isEncryptionEnabled()) {
       setAppState('locked');
     } else {
       setAppState('ready');
     }
+    requestPersistentStorage();
   }, []);
 
   // Apply dark mode class
@@ -84,6 +92,10 @@ function App() {
       data = await getAllPhotos();
     }
     setPhotos(data);
+    // Check backup reminder based on total photo count
+    if (!activeAlbumId) {
+      setShowBackupReminder(shouldShowBackupReminder(data.length));
+    }
   }, [activeAlbumId]);
 
   useEffect(() => {
@@ -340,6 +352,36 @@ function App() {
         onAddAlbum={handleAddAlbum}
         onDeleteAlbum={handleDeleteAlbum}
       />
+
+      {showBackupReminder && (
+        <div className="backup-reminder">
+          <div className="backup-reminder-content">
+            <span className="backup-reminder-text">
+              最終バックアップ: {formatLastBackup()}
+            </span>
+            <div className="backup-reminder-actions">
+              <button
+                className="backup-reminder-btn backup-reminder-export"
+                onClick={() => {
+                  setShowBackupReminder(false);
+                  setShowSettings(true);
+                }}
+              >
+                バックアップする
+              </button>
+              <button
+                className="backup-reminder-btn backup-reminder-dismiss"
+                onClick={() => {
+                  snoozeBackupReminder();
+                  setShowBackupReminder(false);
+                }}
+              >
+                後で
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="main-content">
         {activeAlbumId && (
