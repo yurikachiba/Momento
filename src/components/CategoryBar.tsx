@@ -1,5 +1,6 @@
 import { type FC, useState } from 'react';
 import type { Album } from '../types/photo';
+import { stripHtmlTags } from '../lib/sanitize';
 
 interface CategoryBarProps {
   albums: Album[];
@@ -25,7 +26,7 @@ const CategoryBar: FC<CategoryBarProps> = ({
   const [selectedIcon, setSelectedIcon] = useState(ICON_OPTIONS[0]);
 
   const handleAdd = () => {
-    const trimmed = newName.trim();
+    const trimmed = stripHtmlTags(newName).trim();
     if (!trimmed) return;
     onAddAlbum(trimmed, selectedIcon);
     setNewName('');
@@ -82,6 +83,7 @@ const CategoryBar: FC<CategoryBarProps> = ({
               className="input-name"
               placeholder="アルバム名（例：夏の思い出）"
               value={newName}
+              maxLength={50}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
               autoFocus

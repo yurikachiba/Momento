@@ -953,6 +953,61 @@ body {
   margin-left: 4px;
 }
 
+/* ===== Password Screen ===== */
+.password-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  padding: 20px;
+}
+
+.password-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 40px 28px;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.password-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  line-height: normal;
+}
+
+.password-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.password-desc {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+
+.password-input {
+  margin-bottom: 12px !important;
+}
+
+.password-error {
+  color: #e53e3e;
+  font-size: 14px;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.password-submit {
+  width: 100%;
+  margin-top: 8px;
+}
+
 /* ===== Responsive ===== */
 @media (min-width: 480px) {
   .photo-grid {

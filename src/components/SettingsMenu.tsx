@@ -1,15 +1,25 @@
 import { type FC, useRef, useState } from 'react';
 import { exportData, importData } from '../lib/sync';
+import { isEncryptionEnabled } from '../lib/crypto';
 
 interface SettingsMenuProps {
   onClose: () => void;
   onDataChanged: () => void;
+  onSetupEncryption: () => void;
+  onRemoveEncryption: () => void;
 }
 
-const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, onDataChanged }) => {
+const SettingsMenu: FC<SettingsMenuProps> = ({
+  onClose,
+  onDataChanged,
+  onSetupEncryption,
+  onRemoveEncryption,
+}) => {
   const importRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const encrypted = isEncryptionEnabled();
 
   const handleExport = async () => {
     setBusy(true);
@@ -73,6 +83,46 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, onDataChanged }) => {
                 <small>ZIPから写真を復元</small>
               </span>
             </button>
+          </div>
+        </div>
+
+        {/* Encryption Section */}
+        <div className="settings-section">
+          <p className="settings-section-title">🔒 暗号化</p>
+          <div className="settings-actions">
+            {encrypted ? (
+              <button
+                className="settings-btn"
+                onClick={() => {
+                  if (confirm('暗号化を解除しますか？\n写真は復号化されて保存されます。')) {
+                    onRemoveEncryption();
+                    onClose();
+                  }
+                }}
+                disabled={busy}
+              >
+                <span className="settings-btn-icon">🔓</span>
+                <span className="settings-btn-text">
+                  <strong>暗号化を解除</strong>
+                  <small>パスワード保護を無効にする</small>
+                </span>
+              </button>
+            ) : (
+              <button
+                className="settings-btn"
+                onClick={() => {
+                  onSetupEncryption();
+                  onClose();
+                }}
+                disabled={busy}
+              >
+                <span className="settings-btn-icon">🔒</span>
+                <span className="settings-btn-text">
+                  <strong>暗号化を有効にする</strong>
+                  <small>パスワードで写真を保護</small>
+                </span>
+              </button>
+            )}
           </div>
         </div>
 

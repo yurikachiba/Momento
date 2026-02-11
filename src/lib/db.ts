@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Photo, Album } from '../types/photo';
+import { getKey, encryptBlob, decryptToBlob } from './crypto';
 
 const DB_NAME = 'momento-photos';
 const DB_VERSION = 2;
@@ -24,42 +25,109 @@ async function getDB(): Promise<IDBPDatabase> {
   return dbInstance;
 }
 
+// --- Encryption helpers ---
+
+async function encryptPhoto(photo: Photo): Promise<Record<string, unknown>> {
+  const encBlob = await encryptBlob(photo.blob);
+  const encThumb = await encryptBlob(photo.thumbnail);
+  return { ...photo, blob: encBlob, thumbnail: encThumb, encrypted: true };
+}
+
+async function decryptPhotoRecord(record: Record<string, unknown>): Promise<Photo> {
+  if (record.encrypted && getKey()) {
+    const blob = await decryptToBlob(record.blob as ArrayBuffer, 'image/webp');
+    const thumbnail = await decryptToBlob(record.thumbnail as ArrayBuffer, 'image/webp');
+    const { encrypted: _, ...rest } = record;
+    return { ...rest, blob, thumbnail } as Photo;
+  }
+  return record as unknown as Photo;
+}
+
 // --- Photos ---
 
 export async function addPhoto(photo: Photo): Promise<void> {
   const db = await getDB();
-  // Ensure albumIds always exists
   if (!photo.albumIds) photo.albumIds = [];
-  await db.put('photos', photo);
+  if (getKey()) {
+    await db.put('photos', await encryptPhoto(photo));
+  } else {
+    await db.put('photos', photo);
+  }
 }
 
 export async function getPhoto(id: string): Promise<Photo | undefined> {
   const db = await getDB();
-  const photo = await db.get('photos', id);
-  if (photo && !photo.albumIds) photo.albumIds = [];
-  return photo;
+  const record = await db.get('photos', id);
+  if (!record) return undefined;
+  if (!record.albumIds) record.albumIds = [];
+  return decryptPhotoRecord(record);
 }
 
 export async function getAllPhotos(): Promise<Photo[]> {
   const db = await getDB();
   const all = await db.getAll('photos');
-  for (const p of all) {
-    if (!p.albumIds) p.albumIds = [];
+  const photos: Photo[] = [];
+  for (const r of all) {
+    if (!r.albumIds) r.albumIds = [];
+    photos.push(await decryptPhotoRecord(r));
   }
-  return all.sort((a, b) => b.createdAt - a.createdAt);
+  return photos.sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function getPhotosByAlbum(albumId: string): Promise<Photo[]> {
   const db = await getDB();
   const all = await db.getAll('photos');
-  return all
-    .filter((p) => p.albumIds?.includes(albumId))
-    .sort((a, b) => b.createdAt - a.createdAt);
+  const filtered = all.filter((p) => p.albumIds?.includes(albumId));
+  const photos: Photo[] = [];
+  for (const r of filtered) {
+    photos.push(await decryptPhotoRecord(r));
+  }
+  return photos.sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function deletePhoto(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('photos', id);
+}
+
+/**
+ * Encrypt all existing unencrypted photos. Used when setting up encryption.
+ */
+export async function encryptAllPhotos(
+  onProgress?: (done: number, total: number) => void,
+): Promise<number> {
+  const db = await getDB();
+  const all = await db.getAll('photos');
+  const unencrypted = all.filter((r) => !r.encrypted);
+  let done = 0;
+  for (const record of unencrypted) {
+    if (!record.albumIds) record.albumIds = [];
+    // record is already a plain Photo (unencrypted Blob)
+    const encrypted = await encryptPhoto(record as unknown as Photo);
+    await db.put('photos', encrypted);
+    done++;
+    onProgress?.(done, unencrypted.length);
+  }
+  return done;
+}
+
+/**
+ * Decrypt all encrypted photos. Used when removing encryption.
+ */
+export async function decryptAllPhotos(
+  onProgress?: (done: number, total: number) => void,
+): Promise<number> {
+  const db = await getDB();
+  const all = await db.getAll('photos');
+  const encrypted = all.filter((r) => r.encrypted);
+  let done = 0;
+  for (const record of encrypted) {
+    const photo = await decryptPhotoRecord(record);
+    await db.put('photos', photo);
+    done++;
+    onProgress?.(done, encrypted.length);
+  }
+  return done;
 }
 
 // --- Albums ---
@@ -77,14 +145,15 @@ export async function getAllAlbums(): Promise<Album[]> {
 
 export async function deleteAlbum(id: string): Promise<void> {
   const db = await getDB();
-  // Remove album id from all photos
   const photos = await getPhotosByAlbum(id);
   const tx = db.transaction(['photos', 'albums'], 'readwrite');
   for (const photo of photos) {
-    await tx.objectStore('photos').put({
-      ...photo,
-      albumIds: photo.albumIds.filter((aid: string) => aid !== id),
-    });
+    const updated = { ...photo, albumIds: photo.albumIds.filter((aid: string) => aid !== id) };
+    if (getKey()) {
+      await tx.objectStore('photos').put(await encryptPhoto(updated));
+    } else {
+      await tx.objectStore('photos').put(updated);
+    }
   }
   await tx.objectStore('albums').delete(id);
   await tx.done;

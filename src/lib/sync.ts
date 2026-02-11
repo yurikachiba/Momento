@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { getAllPhotos, addPhoto, getAllAlbums, addAlbum } from './db';
 import type { Photo, Album } from '../types/photo';
+import { stripHtmlTags, sanitizeFileName } from './sanitize';
 
 interface ExportMetadata {
   version: 2;
@@ -70,26 +71,31 @@ export async function importData(
 
   const metadata = JSON.parse(await metaFile.async('text')) as ExportMetadata;
 
-  // Import albums (skip duplicates by id)
+  // Import albums (skip duplicates by id) — sanitize imported names
   const existingAlbums = await getAllAlbums();
   const existingAlbumIds = new Set(existingAlbums.map((a) => a.id));
   let albumsImported = 0;
 
   for (const album of metadata.albums ?? []) {
     if (!existingAlbumIds.has(album.id)) {
-      await addAlbum(album);
+      const sanitizedAlbum: Album = {
+        ...album,
+        name: stripHtmlTags(album.name).slice(0, 50),
+        icon: stripHtmlTags(album.icon),
+      };
+      await addAlbum(sanitizedAlbum);
       albumsImported++;
     }
   }
 
-  // Import photos (skip duplicates by id)
+  // Import photos (skip duplicates by id) — sanitize imported names
   const existingPhotos = await getAllPhotos();
   const existingPhotoIds = new Set(existingPhotos.map((p) => p.id));
   let photosImported = 0;
   const total = metadata.photos.length;
 
   for (let i = 0; i < metadata.photos.length; i++) {
-    const photoMeta = metadata.photos[i];
+    const photoMeta = { ...metadata.photos[i], name: sanitizeFileName(metadata.photos[i].name) };
     onProgress?.(i + 1, total);
 
     if (existingPhotoIds.has(photoMeta.id)) continue;
