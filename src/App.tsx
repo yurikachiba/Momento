@@ -4,6 +4,7 @@ import PhotoGrid from './components/PhotoGrid';
 import PhotoViewer from './components/PhotoViewer';
 import CategoryBar from './components/CategoryBar';
 import AddPhotoButton from './components/AddPhotoButton';
+import SettingsMenu from './components/SettingsMenu';
 import {
   getAllPhotos,
   getPhotosByCategory,
@@ -23,6 +24,7 @@ function App() {
   const [activeCategoryId, setActiveCategoryId] = useState('all');
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('momento-dark') === 'true';
   });
@@ -140,13 +142,22 @@ function App() {
       <Header
         title="Momento"
         rightAction={
-          <button
-            className="btn-icon"
-            onClick={() => setDarkMode(!darkMode)}
-            aria-label={darkMode ? 'ライトモード' : 'ダークモード'}
-          >
-            {darkMode ? '☀️' : '🌙'}
-          </button>
+          <div className="header-actions">
+            <button
+              className="btn-icon"
+              onClick={() => setShowSettings(true)}
+              aria-label="データ管理"
+            >
+              ⚙️
+            </button>
+            <button
+              className="btn-icon"
+              onClick={() => setDarkMode(!darkMode)}
+              aria-label={darkMode ? 'ライトモード' : 'ダークモード'}
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+          </div>
         }
       />
 
@@ -168,6 +179,16 @@ function App() {
       </main>
 
       <AddPhotoButton onFiles={handleAddFiles} />
+
+      {showSettings && (
+        <SettingsMenu
+          onClose={() => setShowSettings(false)}
+          onDataChanged={() => {
+            loadPhotos();
+            loadCategories();
+          }}
+        />
+      )}
 
       {selectedPhoto && (
         <PhotoViewer

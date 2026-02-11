@@ -522,6 +522,91 @@ body {
   border-color: var(--accent);
 }
 
+/* ===== Header Actions ===== */
+.header-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* ===== Settings Menu ===== */
+.settings-dialog {
+  max-width: 420px;
+}
+
+.settings-desc {
+  font-size: 15px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.settings-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.settings-btn {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.settings-btn:hover {
+  border-color: var(--accent);
+}
+
+.settings-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-btn-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.settings-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-btn-text strong {
+  font-size: var(--font-size-base);
+}
+
+.settings-btn-text small {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.settings-status {
+  text-align: center;
+  padding: 14px;
+  margin-bottom: 16px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.settings-close {
+  width: 100%;
+}
+
 /* ===== Responsive ===== */
 @media (min-width: 480px) {
   .photo-grid {
