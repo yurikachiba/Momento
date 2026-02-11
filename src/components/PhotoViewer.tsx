@@ -1,7 +1,5 @@
-import { type FC, useMemo, useState, useEffect } from 'react';
+import { type FC, useMemo, useState } from 'react';
 import type { Photo, Album } from '../types/photo';
-import { isCloudConfigured } from '../lib/firebase';
-import { uploadToCloud, fetchFromCloud, isLocallyAvailable } from '../lib/cloud';
 
 interface PhotoViewerProps {
   photo: Photo;
@@ -9,7 +7,6 @@ interface PhotoViewerProps {
   onClose: () => void;
   onDelete: (id: string) => void;
   onToggleAlbum: (photoId: string, albumId: string) => void;
-  onPhotoUpdated: () => void;
 }
 
 const canShare = typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
@@ -20,35 +17,12 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   onClose,
   onDelete,
   onToggleAlbum,
-  onPhotoUpdated,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const [cloudBusy, setCloudBusy] = useState(false);
-  const [cloudStatus, setCloudStatus] = useState<string | null>(null);
-  const [cloudBlob, setCloudBlob] = useState<Blob | null>(null);
 
-  const local = isLocallyAvailable(photo);
-  const displayBlob = local ? photo.blob : cloudBlob;
-  const url = useMemo(
-    () => (displayBlob ? URL.createObjectURL(displayBlob) : null),
-    [displayBlob]
-  );
-
-  // Auto-fetch from cloud when viewing a cloud-only photo
-  useEffect(() => {
-    if (!local && photo.cloudPath && !cloudBlob) {
-      setCloudStatus('クラウドから読み込み中...');
-      fetchFromCloud(photo)
-        .then((blob) => {
-          setCloudBlob(blob);
-          setCloudStatus(null);
-        })
-        .catch(() => setCloudStatus('読み込みに失敗しました'));
-    }
-  }, [local, photo, cloudBlob]);
+  const url = useMemo(() => URL.createObjectURL(photo.blob), [photo.blob]);
 
   const handleSave = () => {
-    if (!url) return;
     const a = document.createElement('a');
     a.href = url;
     a.download = `${photo.name}.webp`;
@@ -58,30 +32,13 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   };
 
   const handleShare = async () => {
-    const blob = displayBlob ?? photo.blob;
-    const file = new File([blob], `${photo.name}.webp`, { type: 'image/webp' });
+    const file = new File([photo.blob], `${photo.name}.webp`, { type: 'image/webp' });
     try {
       await navigator.share({ files: [file] });
     } catch {
       // User cancelled – ignore
     }
   };
-
-  const handleUploadToCloud = async () => {
-    setCloudBusy(true);
-    setCloudStatus('アップロード中...');
-    try {
-      await uploadToCloud(photo.id);
-      setCloudStatus('クラウドに保存しました');
-      onPhotoUpdated();
-    } catch (e) {
-      setCloudStatus(e instanceof Error ? e.message : 'アップロード失敗');
-    } finally {
-      setCloudBusy(false);
-    }
-  };
-
-  const cloudConfigured = isCloudConfigured();
 
   return (
     <div className="viewer-overlay" onClick={onClose}>
@@ -90,10 +47,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
           <button className="btn-icon" onClick={onClose} aria-label="閉じる">
             ✕
           </button>
-          <span className="viewer-name">
-            {photo.cloudPath && <span className="cloud-badge">☁️</span>}
-            {photo.name}
-          </span>
+          <span className="viewer-name">{photo.name}</span>
           <button
             className="btn-icon"
             onClick={() => setShowMenu(!showMenu)}
@@ -103,39 +57,21 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
           </button>
         </div>
         <div className="viewer-image-wrap">
-          {url ? (
-            <img src={url} alt={photo.name} className="viewer-image" />
-          ) : (
-            <div className="viewer-loading">
-              {cloudStatus || '読み込み中...'}
-            </div>
-          )}
+          <img src={url} alt={photo.name} className="viewer-image" />
         </div>
 
         <div className="viewer-actions">
-          <button className="viewer-action-btn" onClick={handleSave} disabled={!url}>
+          <button className="viewer-action-btn" onClick={handleSave}>
             <span className="viewer-action-icon">💾</span>
             保存
           </button>
           {canShare && (
-            <button className="viewer-action-btn" onClick={handleShare} disabled={!displayBlob}>
+            <button className="viewer-action-btn" onClick={handleShare}>
               <span className="viewer-action-icon">↗</span>
               共有
             </button>
           )}
-          {cloudConfigured && !photo.cloudPath && (
-            <button
-              className="viewer-action-btn"
-              onClick={handleUploadToCloud}
-              disabled={cloudBusy}
-            >
-              <span className="viewer-action-icon">☁️</span>
-              クラウド
-            </button>
-          )}
         </div>
-
-        {cloudStatus && <div className="viewer-cloud-status">{cloudStatus}</div>}
 
         {showMenu && (
           <div className="viewer-menu">
