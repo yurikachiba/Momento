@@ -533,29 +533,6 @@ body {
   letter-spacing: 0.05em;
 }
 
-.viewer-menu-categories {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.category-chip {
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  font-size: 15px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.category-chip.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
 /* ===== Album Toggle (in viewer menu) ===== */
 .viewer-menu-albums {
   display: flex;
@@ -590,16 +567,7 @@ body {
   text-align: center;
 }
 
-/* ===== Bar Divider & Album Tab ===== */
-.bar-divider {
-  width: 1px;
-  height: 24px;
-  background: var(--border);
-  flex-shrink: 0;
-  align-self: center;
-  margin: 0 4px;
-}
-
+/* ===== Album Tab ===== */
 .album-tab {
   border-style: dashed !important;
 }
