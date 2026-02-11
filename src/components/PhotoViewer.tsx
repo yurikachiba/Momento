@@ -9,6 +9,8 @@ interface PhotoViewerProps {
   onChangeCategory: (photoId: string, categoryId: string) => void;
 }
 
+const canShare = typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
+
 const PhotoViewer: FC<PhotoViewerProps> = ({
   photo,
   categories,
@@ -18,6 +20,24 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const url = useMemo(() => URL.createObjectURL(photo.blob), [photo.blob]);
+
+  const handleSave = () => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${photo.name}.webp`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleShare = async () => {
+    const file = new File([photo.blob], `${photo.name}.webp`, { type: 'image/webp' });
+    try {
+      await navigator.share({ files: [file] });
+    } catch {
+      // User cancelled – ignore
+    }
+  };
 
   return (
     <div className="viewer-overlay" onClick={onClose}>
@@ -38,6 +58,20 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
         <div className="viewer-image-wrap">
           <img src={url} alt={photo.name} className="viewer-image" />
         </div>
+
+        <div className="viewer-actions">
+          <button className="viewer-action-btn" onClick={handleSave}>
+            <span className="viewer-action-icon">💾</span>
+            保存
+          </button>
+          {canShare && (
+            <button className="viewer-action-btn" onClick={handleShare}>
+              <span className="viewer-action-icon">↗</span>
+              共有
+            </button>
+          )}
+        </div>
+
         {showMenu && (
           <div className="viewer-menu">
             <div className="viewer-menu-section">

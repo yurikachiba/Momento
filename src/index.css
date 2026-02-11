@@ -473,6 +473,40 @@ body {
   border-radius: 8px;
 }
 
+/* ===== Viewer Actions (Save/Share) ===== */
+.viewer-actions {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  padding: 16px 20px 8px;
+}
+
+.viewer-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+}
+
+.viewer-action-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.viewer-action-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
 /* ===== Viewer Menu ===== */
 .viewer-menu {
   background: var(--bg-secondary);
