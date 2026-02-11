@@ -256,7 +256,6 @@ function App() {
           onClose={() => setSelectedPhoto(null)}
           onDelete={handleDelete}
           onToggleAlbum={handleToggleAlbum}
-          onPhotoUpdated={loadPhotos}
         />
       )}
     </div>
