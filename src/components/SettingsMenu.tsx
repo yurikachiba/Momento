@@ -4,6 +4,13 @@ import { isEncryptionEnabled } from '../lib/crypto';
 import { recompressAllPhotos, estimateStorageUsage } from '../lib/db';
 import { getStorageMode, setStorageMode, type StorageMode } from '../lib/image';
 import { isPersisted, markBackupDone, formatLastBackup } from '../lib/storage';
+import {
+  isFileSystemAccessSupported,
+  isAutoBackupEnabled,
+  setupAutoBackup,
+  disableAutoBackup,
+  performAutoBackup,
+} from '../lib/autobackup';
 
 interface SettingsMenuProps {
   onClose: () => void;
@@ -32,12 +39,15 @@ const SettingsMenu: FC<SettingsMenuProps> = ({
   const [storageInfo, setStorageInfo] = useState<{ totalBytes: number; photoCount: number } | null>(null);
 
   const [persisted, setPersisted] = useState<boolean | null>(null);
+  const [autoBackupOn, setAutoBackupOn] = useState<boolean | null>(null);
+  const fsSupported = isFileSystemAccessSupported();
 
   const encrypted = isEncryptionEnabled();
 
   useEffect(() => {
     estimateStorageUsage().then(setStorageInfo);
     isPersisted().then(setPersisted);
+    isAutoBackupEnabled().then(setAutoBackupOn);
   }, []);
 
   const handleExport = async () => {
@@ -159,6 +169,77 @@ const SettingsMenu: FC<SettingsMenuProps> = ({
             </span>
           </button>
         </div>
+
+        {/* Auto-Backup Section */}
+        {fsSupported && (
+          <div className="settings-section">
+            <p className="settings-section-title">🔄 自動バックアップ</p>
+            <p className="auto-backup-desc">
+              ローカルフォルダにZIPを自動保存します。ブラウザのデータを消してもファイルは残ります。
+            </p>
+            <div className="settings-actions">
+              {autoBackupOn ? (
+                <>
+                  <button
+                    className="settings-btn auto-backup-active-btn"
+                    onClick={async () => {
+                      setBusy(true);
+                      setStatus('自動バックアップ中...');
+                      const ok = await performAutoBackup((msg) => setStatus(msg));
+                      if (ok) {
+                        markBackupDone();
+                        setTimeout(() => setStatus(null), 2000);
+                      }
+                      setBusy(false);
+                    }}
+                    disabled={busy}
+                  >
+                    <span className="settings-btn-icon">💾</span>
+                    <span className="settings-btn-text">
+                      <strong>今すぐバックアップ</strong>
+                      <small>設定済みフォルダにZIPを保存</small>
+                    </span>
+                  </button>
+                  <button
+                    className="settings-btn"
+                    onClick={async () => {
+                      await disableAutoBackup();
+                      setAutoBackupOn(false);
+                      setStatus('自動バックアップを無効にしました');
+                      setTimeout(() => setStatus(null), 2000);
+                    }}
+                    disabled={busy}
+                  >
+                    <span className="settings-btn-icon">🚫</span>
+                    <span className="settings-btn-text">
+                      <strong>自動バックアップを無効化</strong>
+                      <small>フォルダへの自動保存を停止</small>
+                    </span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="settings-btn"
+                  onClick={async () => {
+                    const ok = await setupAutoBackup();
+                    if (ok) {
+                      setAutoBackupOn(true);
+                      setStatus('自動バックアップを有効にしました');
+                      setTimeout(() => setStatus(null), 2000);
+                    }
+                  }}
+                  disabled={busy}
+                >
+                  <span className="settings-btn-icon">📂</span>
+                  <span className="settings-btn-text">
+                    <strong>自動バックアップを有効化</strong>
+                    <small>バックアップ先フォルダを選択</small>
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Export/Import Section */}
         <div className="settings-section">
