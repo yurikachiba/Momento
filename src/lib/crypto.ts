@@ -37,7 +37,7 @@ export async function deriveKey(password: string, salt: Uint8Array): Promise<Cry
     ['deriveKey'],
   );
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt.buffer as ArrayBuffer, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
     keyMaterial,
     { name: ALGORITHM, length: KEY_LENGTH },
     false,
@@ -90,7 +90,7 @@ export async function verifyPassword(
 ): Promise<boolean> {
   try {
     const decrypted = await crypto.subtle.decrypt(
-      { name: ALGORITHM, iv },
+      { name: ALGORITHM, iv: iv.buffer as ArrayBuffer },
       key,
       data,
     );
@@ -136,7 +136,7 @@ export function getCryptoConfig(): CryptoConfig | null {
   return {
     salt: fromBase64(s),
     verifyIv: fromBase64(i),
-    verifyData: fromBase64(v).buffer,
+    verifyData: fromBase64(v).buffer as ArrayBuffer,
   };
 }
 
