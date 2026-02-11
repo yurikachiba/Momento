@@ -1,12 +1,14 @@
 import { type FC, useMemo, useState } from 'react';
-import type { Photo, Category } from '../types/photo';
+import type { Photo, Category, Album } from '../types/photo';
 
 interface PhotoViewerProps {
   photo: Photo;
   categories: Category[];
+  albums: Album[];
   onClose: () => void;
   onDelete: (id: string) => void;
   onChangeCategory: (photoId: string, categoryId: string) => void;
+  onToggleAlbum: (photoId: string, albumId: string) => void;
 }
 
 const canShare = typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
@@ -14,9 +16,11 @@ const canShare = typeof navigator.share === 'function' && typeof navigator.canSh
 const PhotoViewer: FC<PhotoViewerProps> = ({
   photo,
   categories,
+  albums,
   onClose,
   onDelete,
   onChangeCategory,
+  onToggleAlbum,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const url = useMemo(() => URL.createObjectURL(photo.blob), [photo.blob]);
@@ -100,6 +104,28 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
                 ))}
               </div>
             </div>
+
+            {albums.length > 0 && (
+              <div className="viewer-menu-section">
+                <p className="viewer-menu-label">アルバムに追加</p>
+                <div className="viewer-menu-albums">
+                  {albums.map((album) => {
+                    const inAlbum = photo.albumIds.includes(album.id);
+                    return (
+                      <button
+                        key={album.id}
+                        className={`album-toggle ${inAlbum ? 'active' : ''}`}
+                        onClick={() => onToggleAlbum(photo.id, album.id)}
+                      >
+                        <span className="album-toggle-check">{inAlbum ? '✓' : ''}</span>
+                        {album.icon} {album.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <button
               className="btn-danger"
               onClick={() => {

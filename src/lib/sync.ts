@@ -1,16 +1,17 @@
 import JSZip from 'jszip';
-import { getAllPhotos, addPhoto, getAllCategories, addCategory } from './db';
-import type { Photo, Category } from '../types/photo';
+import { getAllPhotos, addPhoto, getAllCategories, addCategory, getAllAlbums, addAlbum } from './db';
+import type { Photo, Category, Album } from '../types/photo';
 
 interface ExportMetadata {
-  version: 1;
+  version: 2;
   exportedAt: number;
   categories: Category[];
+  albums: Album[];
   photos: Array<Omit<Photo, 'blob' | 'thumbnail'>>;
 }
 
 /**
- * Export all photos and categories as a .zip file and trigger download.
+ * Export all photos, categories and albums as a .zip file and trigger download.
  */
 export async function exportData(
   onProgress?: (done: number, total: number) => void
@@ -18,12 +19,14 @@ export async function exportData(
   const zip = new JSZip();
   const photos = await getAllPhotos();
   const categories = await getAllCategories();
+  const albums = await getAllAlbums();
 
   // Metadata (everything except blobs)
   const metadata: ExportMetadata = {
-    version: 1,
+    version: 2,
     exportedAt: Date.now(),
     categories,
+    albums,
     photos: photos.map(({ blob: _b, thumbnail: _t, ...rest }) => rest),
   };
   zip.file('metadata.json', JSON.stringify(metadata));
@@ -54,13 +57,13 @@ export async function exportData(
 }
 
 /**
- * Import photos and categories from a .zip file.
- * Returns the count of imported photos.
+ * Import photos, categories and albums from a .zip file.
+ * Returns the count of imported items.
  */
 export async function importData(
   file: File,
   onProgress?: (done: number, total: number) => void
-): Promise<{ photosImported: number; categoriesImported: number }> {
+): Promise<{ photosImported: number; categoriesImported: number; albumsImported: number }> {
   const zip = await JSZip.loadAsync(file);
 
   const metaFile = zip.file('metadata.json');
@@ -68,7 +71,7 @@ export async function importData(
     throw new Error('このZIPファイルはMomentoのバックアップではありません');
   }
 
-  const metadata: ExportMetadata = JSON.parse(await metaFile.async('text'));
+  const metadata = JSON.parse(await metaFile.async('text')) as ExportMetadata;
 
   // Import categories (skip duplicates by id)
   const existingCategories = await getAllCategories();
@@ -79,6 +82,18 @@ export async function importData(
     if (!existingCatIds.has(cat.id)) {
       await addCategory(cat);
       categoriesImported++;
+    }
+  }
+
+  // Import albums (skip duplicates by id)
+  const existingAlbums = await getAllAlbums();
+  const existingAlbumIds = new Set(existingAlbums.map((a) => a.id));
+  let albumsImported = 0;
+
+  for (const album of metadata.albums ?? []) {
+    if (!existingAlbumIds.has(album.id)) {
+      await addAlbum(album);
+      albumsImported++;
     }
   }
 
@@ -103,6 +118,7 @@ export async function importData(
 
     const photo: Photo = {
       ...photoMeta,
+      albumIds: photoMeta.albumIds ?? [],
       blob,
       thumbnail,
     };
@@ -110,5 +126,5 @@ export async function importData(
     photosImported++;
   }
 
-  return { photosImported, categoriesImported };
+  return { photosImported, categoriesImported, albumsImported };
 }

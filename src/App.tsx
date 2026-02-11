@@ -8,20 +8,26 @@ import SettingsMenu from './components/SettingsMenu';
 import {
   getAllPhotos,
   getPhotosByCategory,
+  getPhotosByAlbum,
   addPhoto,
   deletePhoto,
   getPhoto,
   getAllCategories,
   addCategory,
   deleteCategory,
+  getAllAlbums,
+  addAlbum,
+  deleteAlbum,
 } from './lib/db';
 import { processImage } from './lib/image';
-import type { Photo, Category } from './types/photo';
+import type { Photo, Category, Album } from './types/photo';
 
 function App() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState('all');
+  const [activeAlbumId, setActiveAlbumId] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -41,22 +47,44 @@ function App() {
     setCategories(cats);
   }, []);
 
+  // Load albums
+  const loadAlbums = useCallback(async () => {
+    const albs = await getAllAlbums();
+    setAlbums(albs);
+  }, []);
+
   // Load photos
   const loadPhotos = useCallback(async () => {
-    const data =
-      activeCategoryId === 'all'
-        ? await getAllPhotos()
-        : await getPhotosByCategory(activeCategoryId);
+    let data: Photo[];
+    if (activeAlbumId) {
+      data = await getPhotosByAlbum(activeAlbumId);
+    } else if (activeCategoryId === 'all') {
+      data = await getAllPhotos();
+    } else {
+      data = await getPhotosByCategory(activeCategoryId);
+    }
     setPhotos(data);
-  }, [activeCategoryId]);
+  }, [activeCategoryId, activeAlbumId]);
 
   useEffect(() => {
     loadCategories();
-  }, [loadCategories]);
+    loadAlbums();
+  }, [loadCategories, loadAlbums]);
 
   useEffect(() => {
     loadPhotos();
   }, [loadPhotos]);
+
+  // Select a category (clears album selection)
+  const handleSelectCategory = useCallback((id: string) => {
+    setActiveAlbumId(null);
+    setActiveCategoryId(id);
+  }, []);
+
+  // Select an album (clears category selection)
+  const handleSelectAlbum = useCallback((id: string) => {
+    setActiveAlbumId(id);
+  }, []);
 
   // Add photos from file input
   const handleAddFiles = useCallback(
@@ -71,6 +99,7 @@ function App() {
             thumbnail,
             name: file.name.replace(/\.[^.]+$/, ''),
             categoryId: activeCategoryId === 'all' ? 'all' : activeCategoryId,
+            albumIds: activeAlbumId ? [activeAlbumId] : [],
             createdAt: Date.now(),
             width,
             height,
@@ -82,7 +111,7 @@ function App() {
         setLoading(false);
       }
     },
-    [activeCategoryId, loadPhotos]
+    [activeCategoryId, activeAlbumId, loadPhotos]
   );
 
   // Delete a photo
@@ -103,6 +132,24 @@ function App() {
       await addPhoto({ ...photo, categoryId });
       if (selectedPhoto?.id === photoId) {
         setSelectedPhoto({ ...photo, categoryId });
+      }
+      await loadPhotos();
+    },
+    [loadPhotos, selectedPhoto]
+  );
+
+  // Toggle album membership for a photo
+  const handleToggleAlbum = useCallback(
+    async (photoId: string, albumId: string) => {
+      const photo = await getPhoto(photoId);
+      if (!photo) return;
+      const albumIds = photo.albumIds.includes(albumId)
+        ? photo.albumIds.filter((id) => id !== albumId)
+        : [...photo.albumIds, albumId];
+      const updated = { ...photo, albumIds };
+      await addPhoto(updated);
+      if (selectedPhoto?.id === photoId) {
+        setSelectedPhoto(updated);
       }
       await loadPhotos();
     },
@@ -137,6 +184,34 @@ function App() {
     [activeCategoryId, loadCategories, loadPhotos]
   );
 
+  // Add an album
+  const handleAddAlbum = useCallback(
+    async (name: string, icon: string) => {
+      const alb: Album = {
+        id: crypto.randomUUID(),
+        name,
+        icon,
+        createdAt: Date.now(),
+      };
+      await addAlbum(alb);
+      await loadAlbums();
+    },
+    [loadAlbums]
+  );
+
+  // Delete an album
+  const handleDeleteAlbum = useCallback(
+    async (id: string) => {
+      await deleteAlbum(id);
+      if (activeAlbumId === id) {
+        setActiveAlbumId(null);
+      }
+      await loadAlbums();
+      await loadPhotos();
+    },
+    [activeAlbumId, loadAlbums, loadPhotos]
+  );
+
   return (
     <div className="app">
       <Header
@@ -163,10 +238,15 @@ function App() {
 
       <CategoryBar
         categories={categories}
+        albums={albums}
         activeCategoryId={activeCategoryId}
-        onSelect={setActiveCategoryId}
-        onAdd={handleAddCategory}
-        onDelete={handleDeleteCategory}
+        activeAlbumId={activeAlbumId}
+        onSelectCategory={handleSelectCategory}
+        onSelectAlbum={handleSelectAlbum}
+        onAddCategory={handleAddCategory}
+        onDeleteCategory={handleDeleteCategory}
+        onAddAlbum={handleAddAlbum}
+        onDeleteAlbum={handleDeleteAlbum}
       />
 
       <main className="main-content">
@@ -186,6 +266,7 @@ function App() {
           onDataChanged={() => {
             loadPhotos();
             loadCategories();
+            loadAlbums();
           }}
         />
       )}
@@ -194,9 +275,11 @@ function App() {
         <PhotoViewer
           photo={selectedPhoto}
           categories={categories}
+          albums={albums}
           onClose={() => setSelectedPhoto(null)}
           onDelete={handleDelete}
           onChangeCategory={handleChangeCategory}
+          onToggleAlbum={handleToggleAlbum}
         />
       )}
     </div>

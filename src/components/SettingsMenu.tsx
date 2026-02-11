@@ -34,9 +34,10 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, onDataChanged }) => {
       const result = await importData(file, (done, total) => {
         setStatus(`写真を復元中... ${done}/${total}`);
       });
-      setStatus(
-        `完了！ 写真${result.photosImported}枚、フォルダ${result.categoriesImported}個を追加しました`
-      );
+      const parts = [`写真${result.photosImported}枚`];
+      if (result.categoriesImported) parts.push(`フォルダ${result.categoriesImported}個`);
+      if (result.albumsImported) parts.push(`アルバム${result.albumsImported}個`);
+      setStatus(`完了！ ${parts.join('、')}を追加しました`);
       onDataChanged();
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'インポートに失敗しました');
@@ -50,7 +51,7 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, onDataChanged }) => {
       <div className="category-add-dialog settings-dialog" onClick={(e) => e.stopPropagation()}>
         <h3>データ管理</h3>
         <p className="settings-desc">
-          写真とフォルダをZIPファイルでやり取りできます。
+          写真・フォルダ・アルバムをZIPファイルでやり取りできます。
           別のスマホに移したい時に使ってね。
         </p>
 

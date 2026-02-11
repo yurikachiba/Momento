@@ -556,6 +556,62 @@ body {
   border-color: var(--accent);
 }
 
+/* ===== Album Toggle (in viewer menu) ===== */
+.viewer-menu-albums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.album-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.album-toggle.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.album-toggle-check {
+  width: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ===== Bar Divider & Album Tab ===== */
+.bar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  flex-shrink: 0;
+  align-self: center;
+  margin: 0 4px;
+}
+
+.album-tab {
+  border-style: dashed !important;
+}
+
+.album-tab.active {
+  border-style: solid !important;
+}
+
+.album-add-tab {
+  font-size: 14px;
+}
+
 /* ===== Header Actions ===== */
 .header-actions {
   display: flex;
