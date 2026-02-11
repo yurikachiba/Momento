@@ -3,6 +3,7 @@ import { exportData, importData } from '../lib/sync';
 import { isEncryptionEnabled } from '../lib/crypto';
 import { recompressAllPhotos, estimateStorageUsage } from '../lib/db';
 import { getStorageMode, setStorageMode, type StorageMode } from '../lib/image';
+import { isPersisted, markBackupDone, formatLastBackup } from '../lib/storage';
 
 interface SettingsMenuProps {
   onClose: () => void;
@@ -30,10 +31,13 @@ const SettingsMenu: FC<SettingsMenuProps> = ({
   const [storageMode, setMode] = useState<StorageMode>(getStorageMode);
   const [storageInfo, setStorageInfo] = useState<{ totalBytes: number; photoCount: number } | null>(null);
 
+  const [persisted, setPersisted] = useState<boolean | null>(null);
+
   const encrypted = isEncryptionEnabled();
 
   useEffect(() => {
     estimateStorageUsage().then(setStorageInfo);
+    isPersisted().then(setPersisted);
   }, []);
 
   const handleExport = async () => {
@@ -43,6 +47,7 @@ const SettingsMenu: FC<SettingsMenuProps> = ({
       await exportData((done, total) => {
         setStatus(`写真を圧縮中... ${done}/${total}`);
       });
+      markBackupDone();
       setStatus('ダウンロードが始まりました');
       setTimeout(() => setStatus(null), 2000);
     } catch {
@@ -107,6 +112,16 @@ const SettingsMenu: FC<SettingsMenuProps> = ({
             <div className="storage-info">
               <span className="storage-size">{formatBytes(storageInfo.totalBytes)}</span>
               <span className="storage-count">（{storageInfo.photoCount}枚）</span>
+            </div>
+            <div className="storage-meta">
+              {persisted !== null && (
+                <span className={`persist-badge ${persisted ? 'active' : ''}`}>
+                  {persisted ? '永続化済み' : '未永続化'}
+                </span>
+              )}
+              <span className="last-backup-info">
+                最終バックアップ: {formatLastBackup()}
+              </span>
             </div>
           </div>
         )}
