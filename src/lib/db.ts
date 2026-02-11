@@ -1,5 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
-import type { Photo, Category, Album } from '../types/photo';
+import type { Photo, Album } from '../types/photo';
 
 const DB_NAME = 'momento-photos';
 const DB_VERSION = 2;
@@ -49,15 +49,6 @@ export async function getAllPhotos(): Promise<Photo[]> {
   return all.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function getPhotosByCategory(categoryId: string): Promise<Photo[]> {
-  const db = await getDB();
-  const all = await db.getAllFromIndex('photos', 'categoryId', categoryId);
-  for (const p of all) {
-    if (!p.albumIds) p.albumIds = [];
-  }
-  return all.sort((a, b) => b.createdAt - a.createdAt);
-}
-
 export async function getPhotosByAlbum(albumId: string): Promise<Photo[]> {
   const db = await getDB();
   const all = await db.getAll('photos');
@@ -69,36 +60,6 @@ export async function getPhotosByAlbum(albumId: string): Promise<Photo[]> {
 export async function deletePhoto(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('photos', id);
-}
-
-// --- Categories ---
-
-export async function addCategory(category: Category): Promise<void> {
-  const db = await getDB();
-  await db.put('categories', category);
-}
-
-export async function getAllCategories(): Promise<Category[]> {
-  const db = await getDB();
-  const all = await db.getAll('categories');
-  return all.sort((a, b) => a.createdAt - b.createdAt);
-}
-
-export async function deleteCategory(id: string): Promise<void> {
-  const db = await getDB();
-  // Move photos in this category to "all"
-  const photos = await getPhotosByCategory(id);
-  const tx = db.transaction(['photos', 'categories'], 'readwrite');
-  for (const photo of photos) {
-    await tx.objectStore('photos').put({ ...photo, categoryId: 'all' });
-  }
-  await tx.objectStore('categories').delete(id);
-  await tx.done;
-}
-
-export async function updateCategory(category: Category): Promise<void> {
-  const db = await getDB();
-  await db.put('categories', category);
 }
 
 // --- Albums ---

@@ -1,15 +1,13 @@
 import { type FC, useMemo, useState, useEffect } from 'react';
-import type { Photo, Category, Album } from '../types/photo';
+import type { Photo, Album } from '../types/photo';
 import { isCloudConfigured } from '../lib/firebase';
 import { uploadToCloud, fetchFromCloud, isLocallyAvailable } from '../lib/cloud';
 
 interface PhotoViewerProps {
   photo: Photo;
-  categories: Category[];
   albums: Album[];
   onClose: () => void;
   onDelete: (id: string) => void;
-  onChangeCategory: (photoId: string, categoryId: string) => void;
   onToggleAlbum: (photoId: string, albumId: string) => void;
   onPhotoUpdated: () => void;
 }
@@ -18,11 +16,9 @@ const canShare = typeof navigator.share === 'function' && typeof navigator.canSh
 
 const PhotoViewer: FC<PhotoViewerProps> = ({
   photo,
-  categories,
   albums,
   onClose,
   onDelete,
-  onChangeCategory,
   onToggleAlbum,
   onPhotoUpdated,
 }) => {
@@ -143,33 +139,6 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
         {showMenu && (
           <div className="viewer-menu">
-            <div className="viewer-menu-section">
-              <p className="viewer-menu-label">フォルダ移動</p>
-              <div className="viewer-menu-categories">
-                <button
-                  className={`category-chip ${photo.categoryId === 'all' ? 'active' : ''}`}
-                  onClick={() => {
-                    onChangeCategory(photo.id, 'all');
-                    setShowMenu(false);
-                  }}
-                >
-                  📁 すべて
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    className={`category-chip ${photo.categoryId === cat.id ? 'active' : ''}`}
-                    onClick={() => {
-                      onChangeCategory(photo.id, cat.id);
-                      setShowMenu(false);
-                    }}
-                  >
-                    {cat.icon} {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {albums.length > 0 && (
               <div className="viewer-menu-section">
                 <p className="viewer-menu-label">アルバムに追加</p>

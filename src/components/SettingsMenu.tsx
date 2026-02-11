@@ -45,7 +45,6 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, onDataChanged }) => {
         setStatus(`写真を復元中... ${done}/${total}`);
       });
       const parts = [`写真${result.photosImported}枚`];
-      if (result.categoriesImported) parts.push(`フォルダ${result.categoriesImported}個`);
       if (result.albumsImported) parts.push(`アルバム${result.albumsImported}個`);
       setStatus(`完了！ ${parts.join('、')}を追加しました`);
       onDataChanged();
