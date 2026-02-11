@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import PhotoGrid from './components/PhotoGrid';
 import PhotoViewer from './components/PhotoViewer';
+import PhotoPicker from './components/PhotoPicker';
 import CategoryBar from './components/CategoryBar';
 import AddPhotoButton from './components/AddPhotoButton';
 import SettingsMenu from './components/SettingsMenu';
@@ -25,6 +26,8 @@ function App() {
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('momento-dark') === 'true';
   });
@@ -125,6 +128,31 @@ function App() {
     [loadPhotos, selectedPhoto]
   );
 
+  // Open photo picker for current album
+  const handleOpenPicker = useCallback(async () => {
+    const all = await getAllPhotos();
+    setAllPhotos(all);
+    setShowPicker(true);
+  }, []);
+
+  // Add selected photos to current album
+  const handleAddPhotosToAlbum = useCallback(
+    async (photoIds: string[]) => {
+      if (!activeAlbumId) return;
+      for (const id of photoIds) {
+        const photo = await getPhoto(id);
+        if (!photo) continue;
+        if (!photo.albumIds.includes(activeAlbumId)) {
+          const updated = { ...photo, albumIds: [...photo.albumIds, activeAlbumId] };
+          await addPhoto(updated);
+        }
+      }
+      setShowPicker(false);
+      await loadPhotos();
+    },
+    [activeAlbumId, loadPhotos]
+  );
+
   // Add an album
   const handleAddAlbum = useCallback(
     async (name: string, icon: string) => {
@@ -192,6 +220,11 @@ function App() {
             <div className="loading-bar-inner" />
           </div>
         )}
+        {activeAlbumId && (
+          <button className="add-to-album-btn" onClick={handleOpenPicker}>
+            + 既存の写真を追加
+          </button>
+        )}
         <PhotoGrid photos={photos} onSelect={setSelectedPhoto} />
       </main>
 
@@ -204,6 +237,15 @@ function App() {
             loadPhotos();
             loadAlbums();
           }}
+        />
+      )}
+
+      {showPicker && activeAlbumId && (
+        <PhotoPicker
+          photos={allPhotos}
+          albumId={activeAlbumId}
+          onConfirm={handleAddPhotosToAlbum}
+          onClose={() => setShowPicker(false)}
         />
       )}
 

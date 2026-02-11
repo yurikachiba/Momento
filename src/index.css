@@ -677,6 +677,128 @@ body {
   color: var(--text-primary);
 }
 
+/* ===== Add to Album Button ===== */
+.add-to-album-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-to-album-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ===== Photo Picker ===== */
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+
+.picker-dialog {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 80dvh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+
+.picker-dialog h3 {
+  font-size: var(--font-size-lg);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.picker-hint {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.picker-empty {
+  font-size: 15px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px 0;
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.picker-cell {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 3px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  background: var(--border);
+  border-radius: 6px;
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.picker-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.picker-cell.selected {
+  border-color: var(--accent);
+}
+
+.picker-cell.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(232, 114, 90, 0.25);
+}
+
+.picker-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  z-index: 1;
+}
+
 /* ===== Responsive ===== */
 @media (min-width: 480px) {
   .photo-grid {
