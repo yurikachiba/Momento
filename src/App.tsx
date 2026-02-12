@@ -32,6 +32,7 @@ function App() {
     total: number;
     done: number;
     failed: number;
+    currentFileProgress: number;
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -96,7 +97,7 @@ function App() {
       const total = files.length;
       if (total === 0) return;
 
-      setUploadProgress({ total, done: 0, failed: 0 });
+      setUploadProgress({ total, done: 0, failed: 0, currentFileProgress: 0 });
 
       let done = 0;
       let failed = 0;
@@ -104,12 +105,14 @@ function App() {
       for (const file of files) {
         try {
           const name = sanitizeFileName(file.name.replace(/\.[^.]+$/, ''));
-          await uploadPhoto(file, activeAlbumId, quality, name);
+          await uploadPhoto(file, activeAlbumId, quality, name, (progress) => {
+            setUploadProgress({ total, done, failed, currentFileProgress: progress });
+          });
         } catch {
           failed++;
         }
         done++;
-        setUploadProgress({ total, done, failed });
+        setUploadProgress({ total, done, failed, currentFileProgress: 0 });
       }
 
       await loadPhotos();
@@ -346,12 +349,16 @@ function App() {
               <div
                 className="upload-bar-fill"
                 style={{
-                  width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%`,
+                  width: `${Math.round(
+                    ((uploadProgress.done + uploadProgress.currentFileProgress) /
+                      uploadProgress.total) *
+                      100
+                  )}%`,
                 }}
               />
             </div>
             <p className="upload-count">
-              {uploadProgress.done} / {uploadProgress.total}
+              {uploadProgress.done - uploadProgress.failed} / {uploadProgress.total}
               {uploadProgress.failed > 0 && (
                 <span className="upload-failed">
                   （{uploadProgress.failed}件失敗）

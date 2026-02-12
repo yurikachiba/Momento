@@ -27,26 +27,55 @@ function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function uploadPhoto(
+export function uploadPhoto(
   file: File,
   albumId: string | null,
   quality: string = 'auto',
-  name?: string
+  name?: string,
+  onProgress?: (progress: number) => void
 ): Promise<Photo> {
-  const formData = new FormData();
-  formData.append('photo', file);
-  formData.append('quality', quality);
-  if (albumId) formData.append('albumId', albumId);
-  if (name) formData.append('name', name);
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('quality', quality);
+    if (albumId) formData.append('albumId', albumId);
+    if (name) formData.append('name', name);
 
-  const res = await fetch(`${API_BASE}/upload`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: formData,
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE}/upload`);
+
+    const token = getToken();
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          onProgress(event.loaded / event.total);
+        }
+      });
+    }
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(
+            new Error(
+              `サーバーから予期しないレスポンスが返されました（${xhr.status} ${xhr.statusText}）`
+            )
+          );
+        }
+      } else {
+        reject(new Error('Upload failed'));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+    xhr.send(formData);
   });
-
-  if (!res.ok) throw new Error('Upload failed');
-  return safeJson<Photo>(res);
 }
 
 export async function getPhotos(albumId?: string | null): Promise<Photo[]> {
