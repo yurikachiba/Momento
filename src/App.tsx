@@ -234,9 +234,13 @@ function App() {
   const handleDeleteAlbum = useCallback(
     async (id: string) => {
       await deleteAlbumApi(id);
-      if (activeAlbumId === id) setActiveAlbumId(null);
       await loadAlbums();
-      await loadPhotos();
+      if (activeAlbumId === id) {
+        // setActiveAlbumId triggers loadPhotos via useEffect
+        setActiveAlbumId(null);
+      } else {
+        await loadPhotos();
+      }
     },
     [activeAlbumId, loadAlbums, loadPhotos]
   );
