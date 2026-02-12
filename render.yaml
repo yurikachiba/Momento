@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: momento-lite
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: DB_PATH
+        value: /data/momento.db
+    disk:
+      name: momento-data
+      mountPath: /data
+      sizeGB: 1

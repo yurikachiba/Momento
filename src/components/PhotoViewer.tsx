@@ -4,7 +4,6 @@ import {
   useEffect,
   useRef,
   useCallback,
-  useMemo,
 } from 'react';
 import type { Photo, Album } from '../types/photo';
 
@@ -15,13 +14,13 @@ interface PhotoViewerProps {
   onClose: () => void;
   onDelete: (id: string) => void;
   onToggleAlbum: (photoId: string, albumId: string) => void;
+  onUpdateMemo: (photoId: string, memo: string) => void;
 }
 
 const canShare =
   typeof navigator.share === 'function' &&
   typeof navigator.canShare === 'function';
 
-/** Number of photos to preload in each direction */
 const PRELOAD_COUNT = 2;
 
 const PhotoViewer: FC<PhotoViewerProps> = ({
@@ -31,11 +30,12 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   onClose,
   onDelete,
   onToggleAlbum,
+  onUpdateMemo,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showMenu, setShowMenu] = useState(false);
+  const [memo, setMemo] = useState('');
 
-  // --- Swipe state ---
   const [offsetX, setOffsetX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -47,61 +47,22 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
   const photo = photos[currentIndex];
 
-  // --- Preload cache: Map<photoId, objectURL> ---
-  const urlCacheRef = useRef<Map<string, string>>(new Map());
+  // Sync memo with current photo
+  useEffect(() => {
+    setMemo(photo.memo || '');
+  }, [photo.id, photo.memo]);
 
-  /** Get or create an object URL for a photo blob */
-  const getUrl = useCallback((p: Photo): string => {
-    const cache = urlCacheRef.current;
-    let url = cache.get(p.id);
-    if (!url) {
-      url = URL.createObjectURL(p.blob);
-      cache.set(p.id, url);
-    }
-    return url;
-  }, []);
-
-  /** Preload photos around the current index */
+  // Preload adjacent images
   useEffect(() => {
     const start = Math.max(0, currentIndex - PRELOAD_COUNT);
     const end = Math.min(photos.length - 1, currentIndex + PRELOAD_COUNT);
-
-    // Preload by creating object URLs + triggering browser image decode
     for (let i = start; i <= end; i++) {
-      const p = photos[i];
-      const url = getUrl(p);
-      // Trigger browser decode for off-screen images
       if (i !== currentIndex) {
         const img = new Image();
-        img.src = url;
+        img.src = photos[i].url;
       }
     }
-
-    // Evict URLs that are far from the current view
-    const cache = urlCacheRef.current;
-    const activeIds = new Set(
-      photos.slice(start, end + 1).map((p) => p.id)
-    );
-    for (const [id, url] of cache) {
-      if (!activeIds.has(id)) {
-        URL.revokeObjectURL(url);
-        cache.delete(id);
-      }
-    }
-  }, [currentIndex, photos, getUrl]);
-
-  // Cleanup all URLs on unmount
-  useEffect(() => {
-    const cache = urlCacheRef.current;
-    return () => {
-      for (const url of cache.values()) {
-        URL.revokeObjectURL(url);
-      }
-      cache.clear();
-    };
-  }, []);
-
-  const currentUrl = useMemo(() => getUrl(photo), [photo, getUrl]);
+  }, [currentIndex, photos]);
 
   // --- Navigation ---
   const goTo = useCallback(
@@ -148,7 +109,11 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
     (e: React.TouchEvent) => {
       if (isAnimating || showMenu) return;
       const touch = e.touches[0];
-      touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now(),
+      };
       touchMovedRef.current = false;
       setIsSwiping(false);
     },
@@ -162,7 +127,6 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
       const dx = touch.clientX - touchStartRef.current.x;
       const dy = touch.clientY - touchStartRef.current.y;
 
-      // If vertical movement is dominant, don't swipe
       if (!touchMovedRef.current && Math.abs(dy) > Math.abs(dx)) {
         touchStartRef.current = null;
         return;
@@ -171,7 +135,6 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
       touchMovedRef.current = true;
       setIsSwiping(true);
 
-      // Add resistance at edges
       const atStart = currentIndex === 0 && dx > 0;
       const atEnd = currentIndex === photos.length - 1 && dx < 0;
       const dampened = atStart || atEnd ? dx * 0.3 : dx;
@@ -189,15 +152,12 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
     const width = containerRef.current?.offsetWidth ?? window.innerWidth;
     const elapsed = Date.now() - touchStartRef.current.time;
-    const velocity = Math.abs(offsetX) / elapsed; // px/ms
+    const velocity = Math.abs(offsetX) / elapsed;
 
-    // Threshold: 30% of width or fast flick (velocity > 0.3 px/ms)
     const threshold = width * 0.3;
-    const shouldAdvance =
-      Math.abs(offsetX) > threshold || velocity > 0.3;
+    const shouldAdvance = Math.abs(offsetX) > threshold || velocity > 0.3;
 
     if (shouldAdvance && offsetX < 0 && currentIndex < photos.length - 1) {
-      // Swipe left → next
       setIsAnimating(true);
       setOffsetX(-width);
       setTimeout(() => {
@@ -207,7 +167,6 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
         setIsSwiping(false);
       }, 250);
     } else if (shouldAdvance && offsetX > 0 && currentIndex > 0) {
-      // Swipe right → prev
       setIsAnimating(true);
       setOffsetX(width);
       setTimeout(() => {
@@ -217,7 +176,6 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
         setIsSwiping(false);
       }, 250);
     } else {
-      // Snap back
       setIsAnimating(true);
       setOffsetX(0);
       setTimeout(() => {
@@ -230,33 +188,43 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   }, [offsetX, currentIndex, photos.length]);
 
   // --- Actions ---
-  const handleSave = () => {
-    const a = document.createElement('a');
-    a.href = currentUrl;
-    a.download = `${photo.name}.webp`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleSave = async () => {
+    try {
+      const response = await fetch(photo.url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${photo.name}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(photo.url, '_blank');
+    }
   };
 
   const handleShare = async () => {
-    const file = new File([photo.blob], `${photo.name}.webp`, {
-      type: 'image/webp',
-    });
     try {
+      const response = await fetch(photo.url);
+      const blob = await response.blob();
+      const file = new File([blob], `${photo.name}.jpg`, { type: blob.type });
       await navigator.share({ files: [file] });
     } catch {
       // User cancelled
     }
   };
 
-  // Adjacent photo URLs for the swipe track
-  const prevUrl =
-    currentIndex > 0 ? getUrl(photos[currentIndex - 1]) : null;
+  const handleMemoBlur = () => {
+    if (memo !== (photo.memo || '')) {
+      onUpdateMemo(photo.id, memo);
+    }
+  };
+
+  const prevUrl = currentIndex > 0 ? photos[currentIndex - 1].url : null;
   const nextUrl =
-    currentIndex < photos.length - 1
-      ? getUrl(photos[currentIndex + 1])
-      : null;
+    currentIndex < photos.length - 1 ? photos[currentIndex + 1].url : null;
 
   return (
     <div className="viewer-overlay" onClick={onClose}>
@@ -300,21 +268,17 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
                     : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
             }}
           >
-            {/* Previous image (off-screen left) */}
             <div className="viewer-slide viewer-slide-prev">
               {prevUrl && <img src={prevUrl} alt="" className="viewer-image" />}
             </div>
-            {/* Current image */}
             <div className="viewer-slide viewer-slide-current">
-              <img src={currentUrl} alt={photo.name} className="viewer-image" />
+              <img src={photo.url} alt={photo.name} className="viewer-image" />
             </div>
-            {/* Next image (off-screen right) */}
             <div className="viewer-slide viewer-slide-next">
               {nextUrl && <img src={nextUrl} alt="" className="viewer-image" />}
             </div>
           </div>
 
-          {/* Arrow buttons (desktop) */}
           {currentIndex > 0 && (
             <button
               className="viewer-arrow viewer-arrow-left"
@@ -350,6 +314,18 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
         {showMenu && (
           <div className="viewer-menu">
+            <div className="viewer-menu-section">
+              <p className="viewer-menu-label">メモ</p>
+              <textarea
+                className="memo-input"
+                placeholder="メモを追加..."
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                onBlur={handleMemoBlur}
+                rows={2}
+              />
+            </div>
+
             {albums.length > 0 && (
               <div className="viewer-menu-section">
                 <p className="viewer-menu-label">アルバムに追加</p>

@@ -1,12 +1,15 @@
 export interface Photo {
   id: string;
-  blob: Blob;
-  thumbnail: Blob;
+  url: string;
+  thumbnailUrl: string;
   name: string;
+  memo: string;
   albumIds: string[];
   createdAt: number;
   width: number;
   height: number;
+  size: number;
+  quality: string;
 }
 
 export interface Album {
