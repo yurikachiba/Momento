@@ -1,13 +1,8 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/[...path].js": {
-      "includeFiles": "server/**"
-    }
-  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://momento-bc8j.onrender.com/api/$1" },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
   "headers": [
