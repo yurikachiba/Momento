@@ -214,13 +214,30 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   };
 
   const handleShare = async () => {
+    // Try sharing as a file first
     try {
       const response = await fetch(photo.url);
       const blob = await response.blob();
       const file = new File([blob], `${photo.name}.jpg`, { type: blob.type });
-      await navigator.share({ files: [file] });
-    } catch {
-      // User cancelled
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return;
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+    }
+
+    // Fallback: share URL
+    try {
+      await navigator.share({ title: photo.name, url: photo.url });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      // Final fallback: copy URL to clipboard
+      try {
+        await navigator.clipboard.writeText(photo.url);
+      } catch {
+        // Clipboard API unavailable
+      }
     }
   };
 
