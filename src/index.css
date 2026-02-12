@@ -1236,9 +1236,10 @@ html.dark .recovery-banner-dismiss {
 .picker-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 12px;
   overflow-y: auto;
   margin-bottom: 16px;
+  padding: 4px;
   flex: 1;
   min-height: 0;
 }
@@ -1250,7 +1251,7 @@ html.dark .recovery-banner-dismiss {
   padding: 0;
   cursor: pointer;
   background: var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   position: relative;
   transition: border-color 0.2s;
 }
@@ -2004,6 +2005,10 @@ html.dark .recovery-banner-dismiss {
   .picker-hint {
     font-size: 13px;
     margin-bottom: 12px;
+  }
+  .picker-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
   .category-add-dialog {
     padding: 20px;
