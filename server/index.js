@@ -618,8 +618,8 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Initialize DB (async for sql.js WASM loading)
-await initDb();
+// Initialize DB
+initDb();
 cleanExpiredSessions();
 
 // Export for Vercel serverless
