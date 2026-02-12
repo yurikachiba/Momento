@@ -1984,3 +1984,10 @@ html.dark .recovery-banner-dismiss {
     padding: 14px 24px;
   }
 }
+
+/* ===== PC: Viewer memo textarea ===== */
+@media (min-width: 768px) {
+  .viewer-menu .memo-input {
+    min-height: 120px;
+  }
+}
