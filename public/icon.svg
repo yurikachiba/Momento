@@ -1,4 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background rounded rectangle -->
   <rect width="100" height="100" rx="20" fill="#e8725a"/>
-  <text x="50" y="68" font-size="52" text-anchor="middle" fill="white" font-family="sans-serif" font-weight="bold">M</text>
+
+  <!-- Photo frame / card -->
+  <rect x="15" y="18" width="70" height="64" rx="8" fill="white" opacity="0.95"/>
+
+  <!-- Sky gradient area -->
+  <rect x="20" y="23" width="60" height="40" rx="4" fill="#ffe0b2"/>
+
+  <!-- Sun -->
+  <circle cx="58" cy="35" r="8" fill="#ffb74d"/>
+
+  <!-- Mountains / hills -->
+  <polygon points="20,63 35,45 50,58 60,48 80,63" fill="#a5d6a7" opacity="0.8"/>
+  <polygon points="20,63 40,50 60,63" fill="#81c784" opacity="0.9"/>
+
+  <!-- Heart -->
+  <g transform="translate(50, 72) scale(0.6)">
+    <path d="M0,-8 C-4,-16 -16,-16 -16,-6 C-16,2 0,14 0,14 C0,14 16,2 16,-6 C16,-16 4,-16 0,-8Z" fill="#e8725a"/>
+  </g>
+
+  <!-- Bookmark ribbon -->
+  <path d="M68,18 L68,36 L73,31 L78,36 L78,18 Z" fill="#e8725a" opacity="0.9"/>
 </svg>
