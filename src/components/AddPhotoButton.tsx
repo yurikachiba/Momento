@@ -1,7 +1,7 @@
 import { type FC, useRef, useState } from 'react';
 
 interface AddPhotoButtonProps {
-  onFiles: (files: FileList, quality: string) => void;
+  onFiles: (files: File[], quality: string) => void;
 }
 
 const AddPhotoButton: FC<AddPhotoButtonProps> = ({ onFiles }) => {
@@ -10,10 +10,10 @@ const AddPhotoButton: FC<AddPhotoButtonProps> = ({ onFiles }) => {
   const [quality, setQuality] = useState<string>(() => {
     return localStorage.getItem('momento-quality') || 'auto';
   });
-  const pendingFilesRef = useRef<FileList | null>(null);
+  const pendingFilesRef = useRef<File[] | null>(null);
 
   const handleFilesChosen = (files: FileList) => {
-    pendingFilesRef.current = files;
+    pendingFilesRef.current = Array.from(files);
     setShowQuality(true);
   };
 
