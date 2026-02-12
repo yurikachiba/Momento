@@ -53,6 +53,14 @@ export default function LandingPage() {
       <p className="landing-footer">
         Googleアカウント不要・メール不要
       </p>
+
+      <nav className="landing-legal-links">
+        <Link to="/privacy">プライバシーポリシー</Link>
+        <span className="landing-legal-sep">|</span>
+        <Link to="/terms">利用規約</Link>
+        <span className="landing-legal-sep">|</span>
+        <Link to="/sitemap">サイトマップ</Link>
+      </nav>
     </div>
   );
 }
