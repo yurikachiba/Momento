@@ -7,6 +7,12 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { initDb, getDb } from './db.js';
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from '@simplewebauthn/server';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,30 +38,366 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '..', 'dist')));
 }
 
-// --- Middleware ---
+// --- WebAuthn Config ---
+const RP_NAME = 'Momento Lite';
+const RP_ID = process.env.RP_ID || 'localhost';
+const ORIGIN = process.env.ORIGIN || 'http://localhost:5173';
 
-function getUserId(req, res, next) {
-  const userId = req.headers['x-user-id'];
-  if (!userId || typeof userId !== 'string' || userId.length > 100) {
-    return res.status(400).json({ error: 'Missing or invalid X-User-Id header' });
-  }
-  req.userId = userId;
-  next();
+// In-memory challenge store (per-session, short-lived)
+const challengeStore = new Map();
+
+// --- Helpers ---
+
+function hashPassword(password) {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16);
+    crypto.scrypt(password, salt, 64, (err, derived) => {
+      if (err) reject(err);
+      resolve(salt.toString('hex') + ':' + derived.toString('hex'));
+    });
+  });
 }
 
-function ensureUser(req, res, next) {
+function verifyPassword(password, stored) {
+  return new Promise((resolve, reject) => {
+    const [saltHex, hashHex] = stored.split(':');
+    const salt = Buffer.from(saltHex, 'hex');
+    crypto.scrypt(password, salt, 64, (err, derived) => {
+      if (err) reject(err);
+      resolve(derived.toString('hex') === hashHex);
+    });
+  });
+}
+
+function createSession(userId) {
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(req.userId);
-  if (!existing) {
-    db.prepare('INSERT INTO users (id, created_at) VALUES (?, ?)').run(req.userId, Date.now());
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = Date.now();
+  const expiresAt = now + 30 * 24 * 60 * 60 * 1000; // 30 days
+  db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(
+    token, userId, now, expiresAt
+  );
+  return { token, expiresAt };
+}
+
+function cleanExpiredSessions() {
+  const db = getDb();
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
+}
+
+// --- Auth Middleware ---
+
+function getSessionUser(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'ログインが必要です' });
   }
+  const token = authHeader.slice(7);
+  const db = getDb();
+  const session = db.prepare(
+    'SELECT s.user_id, u.username, u.display_name FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ? AND s.expires_at > ?'
+  ).get(token, Date.now());
+  if (!session) {
+    return res.status(401).json({ error: 'セッションが無効です' });
+  }
+  req.userId = session.user_id;
+  req.userName = session.username;
+  req.userDisplayName = session.display_name;
   next();
 }
 
-// --- Routes ---
+// --- Auth Routes ---
 
-// Upload photo
-app.post('/api/upload', getUserId, ensureUser, upload.single('photo'), async (req, res) => {
+// Register (username + password only, no email)
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password, displayName } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'ユーザー名とパスワードは必須です' });
+    }
+    if (username.length < 2 || username.length > 30) {
+      return res.status(400).json({ error: 'ユーザー名は2〜30文字にしてください' });
+    }
+    if (!/^[a-zA-Z0-9_\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]+$/.test(username)) {
+      return res.status(400).json({ error: 'ユーザー名に使えない文字が含まれています' });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'パスワードは4文字以上にしてください' });
+    }
+
+    const db = getDb();
+    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    if (existing) {
+      return res.status(409).json({ error: 'このユーザー名は既に使われています' });
+    }
+
+    const id = crypto.randomUUID();
+    const passwordHash = await hashPassword(password);
+    const now = Date.now();
+    db.prepare(
+      'INSERT INTO users (id, username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, username, passwordHash, displayName || username, now);
+
+    const session = createSession(id);
+    res.json({
+      token: session.token,
+      user: { id, username, displayName: displayName || username },
+    });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: '登録に失敗しました' });
+  }
+});
+
+// Login (username + password)
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'ユーザー名とパスワードを入力してください' });
+    }
+
+    const db = getDb();
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    if (!user || !user.password_hash) {
+      return res.status(401).json({ error: 'ユーザー名またはパスワードが間違っています' });
+    }
+
+    const valid = await verifyPassword(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'ユーザー名またはパスワードが間違っています' });
+    }
+
+    const session = createSession(user.id);
+    res.json({
+      token: session.token,
+      user: { id: user.id, username: user.username, displayName: user.display_name },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'ログインに失敗しました' });
+  }
+});
+
+// Logout
+app.post('/api/auth/logout', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const db = getDb();
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  }
+  res.json({ ok: true });
+});
+
+// Check session
+app.get('/api/auth/me', getSessionUser, (req, res) => {
+  res.json({
+    user: { id: req.userId, username: req.userName, displayName: req.userDisplayName },
+  });
+});
+
+// --- WebAuthn Routes ---
+
+// Start registration (generate options)
+app.post('/api/webauthn/register/options', getSessionUser, async (req, res) => {
+  try {
+    const db = getDb();
+    const existingCreds = db.prepare(
+      'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?'
+    ).all(req.userId);
+
+    const options = await generateRegistrationOptions({
+      rpName: RP_NAME,
+      rpID: RP_ID,
+      userID: new TextEncoder().encode(req.userId),
+      userName: req.userName,
+      userDisplayName: req.userDisplayName || req.userName,
+      attestationType: 'none',
+      excludeCredentials: existingCreds.map((c) => ({
+        id: c.credential_id,
+        transports: JSON.parse(c.transports),
+      })),
+      authenticatorSelection: {
+        residentKey: 'preferred',
+        userVerification: 'preferred',
+      },
+    });
+
+    challengeStore.set(req.userId, options.challenge);
+    setTimeout(() => challengeStore.delete(req.userId), 5 * 60 * 1000);
+
+    res.json(options);
+  } catch (err) {
+    console.error('WebAuthn register options error:', err);
+    res.status(500).json({ error: '生体認証の設定準備に失敗しました' });
+  }
+});
+
+// Complete registration (verify response)
+app.post('/api/webauthn/register/verify', getSessionUser, async (req, res) => {
+  try {
+    const expectedChallenge = challengeStore.get(req.userId);
+    if (!expectedChallenge) {
+      return res.status(400).json({ error: 'もう一度やり直してください' });
+    }
+
+    const verification = await verifyRegistrationResponse({
+      response: req.body,
+      expectedChallenge,
+      expectedOrigin: ORIGIN,
+      expectedRPID: RP_ID,
+    });
+
+    if (!verification.verified || !verification.registrationInfo) {
+      return res.status(400).json({ error: '生体認証の登録に失敗しました' });
+    }
+
+    const { credential } = verification.registrationInfo;
+    const db = getDb();
+    const id = crypto.randomUUID();
+
+    db.prepare(
+      'INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, transports, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      id,
+      req.userId,
+      Buffer.from(credential.id).toString('base64url'),
+      Buffer.from(credential.publicKey).toString('base64'),
+      credential.counter,
+      JSON.stringify(req.body.response?.transports || []),
+      Date.now()
+    );
+
+    challengeStore.delete(req.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('WebAuthn register verify error:', err);
+    res.status(500).json({ error: '生体認証の登録に失敗しました' });
+  }
+});
+
+// Start authentication (generate options)
+app.post('/api/webauthn/login/options', async (req, res) => {
+  try {
+    const { username } = req.body;
+    const db = getDb();
+
+    let allowCredentials = [];
+    let userId = null;
+
+    if (username) {
+      const user = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+      if (user) {
+        userId = user.id;
+        const creds = db.prepare(
+          'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?'
+        ).all(user.id);
+        allowCredentials = creds.map((c) => ({
+          id: c.credential_id,
+          transports: JSON.parse(c.transports),
+        }));
+      }
+    }
+
+    const options = await generateAuthenticationOptions({
+      rpID: RP_ID,
+      allowCredentials,
+      userVerification: 'preferred',
+    });
+
+    const challengeKey = userId || `anon_${options.challenge}`;
+    challengeStore.set(challengeKey, { challenge: options.challenge, userId });
+    setTimeout(() => challengeStore.delete(challengeKey), 5 * 60 * 1000);
+
+    res.json({ ...options, _challengeKey: challengeKey });
+  } catch (err) {
+    console.error('WebAuthn login options error:', err);
+    res.status(500).json({ error: '生体認証ログインの準備に失敗しました' });
+  }
+});
+
+// Complete authentication (verify response)
+app.post('/api/webauthn/login/verify', async (req, res) => {
+  try {
+    const { _challengeKey, ...authResponse } = req.body;
+    const stored = challengeStore.get(_challengeKey);
+    if (!stored) {
+      return res.status(400).json({ error: 'チャレンジが見つかりません' });
+    }
+
+    const db = getDb();
+    const credentialIdFromResponse = authResponse.id;
+
+    const credential = db.prepare(
+      'SELECT * FROM webauthn_credentials WHERE credential_id = ?'
+    ).get(credentialIdFromResponse);
+
+    if (!credential) {
+      return res.status(400).json({ error: '登録されていない認証情報です' });
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: authResponse,
+      expectedChallenge: stored.challenge,
+      expectedOrigin: ORIGIN,
+      expectedRPID: RP_ID,
+      credential: {
+        id: credential.credential_id,
+        publicKey: Buffer.from(credential.public_key, 'base64'),
+        counter: credential.counter,
+        transports: JSON.parse(credential.transports),
+      },
+    });
+
+    if (!verification.verified) {
+      return res.status(400).json({ error: '生体認証に失敗しました' });
+    }
+
+    db.prepare('UPDATE webauthn_credentials SET counter = ? WHERE id = ?').run(
+      verification.authenticationInfo.newCounter,
+      credential.id
+    );
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(credential.user_id);
+    const session = createSession(user.id);
+    challengeStore.delete(_challengeKey);
+
+    res.json({
+      token: session.token,
+      user: { id: user.id, username: user.username, displayName: user.display_name },
+    });
+  } catch (err) {
+    console.error('WebAuthn login verify error:', err);
+    res.status(500).json({ error: '生体認証ログインに失敗しました' });
+  }
+});
+
+// Check if user has WebAuthn credentials
+app.get('/api/webauthn/status', getSessionUser, (req, res) => {
+  const db = getDb();
+  const creds = db.prepare(
+    'SELECT id, created_at FROM webauthn_credentials WHERE user_id = ?'
+  ).all(req.userId);
+  res.json({ registered: creds.length > 0, count: creds.length });
+});
+
+// Check if a username has WebAuthn credentials (for login page)
+app.post('/api/webauthn/check', (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.json({ available: false });
+  const db = getDb();
+  const user = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (!user) return res.json({ available: false });
+  const creds = db.prepare(
+    'SELECT id FROM webauthn_credentials WHERE user_id = ?'
+  ).all(user.id);
+  res.json({ available: creds.length > 0 });
+});
+
+// --- Photo Routes ---
+
+app.post('/api/upload', getSessionUser, upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file provided' });
@@ -126,8 +468,7 @@ app.post('/api/upload', getUserId, ensureUser, upload.single('photo'), async (re
   }
 });
 
-// Get photos
-app.get('/api/photos', getUserId, ensureUser, (req, res) => {
+app.get('/api/photos', getSessionUser, (req, res) => {
   const db = getDb();
   const albumId = req.query.albumId;
 
@@ -167,8 +508,7 @@ app.get('/api/photos', getUserId, ensureUser, (req, res) => {
   res.json(result);
 });
 
-// Update photo metadata
-app.patch('/api/photos/:id', getUserId, ensureUser, (req, res) => {
+app.patch('/api/photos/:id', getSessionUser, (req, res) => {
   const db = getDb();
   const photo = db.prepare(
     'SELECT * FROM photos WHERE id = ? AND user_id = ?'
@@ -186,8 +526,7 @@ app.patch('/api/photos/:id', getUserId, ensureUser, (req, res) => {
   res.json({ ok: true });
 });
 
-// Delete photo
-app.delete('/api/photos/:id', getUserId, ensureUser, async (req, res) => {
+app.delete('/api/photos/:id', getSessionUser, async (req, res) => {
   const db = getDb();
   const photo = db.prepare(
     'SELECT * FROM photos WHERE id = ? AND user_id = ?'
@@ -206,8 +545,7 @@ app.delete('/api/photos/:id', getUserId, ensureUser, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Get albums
-app.get('/api/albums', getUserId, ensureUser, (req, res) => {
+app.get('/api/albums', getSessionUser, (req, res) => {
   const db = getDb();
   const albums = db.prepare(
     'SELECT * FROM albums WHERE user_id = ? ORDER BY created_at ASC'
@@ -222,8 +560,7 @@ app.get('/api/albums', getUserId, ensureUser, (req, res) => {
   );
 });
 
-// Create album
-app.post('/api/albums', getUserId, ensureUser, (req, res) => {
+app.post('/api/albums', getSessionUser, (req, res) => {
   const db = getDb();
   const { name, icon } = req.body;
   const id = crypto.randomUUID();
@@ -234,8 +571,7 @@ app.post('/api/albums', getUserId, ensureUser, (req, res) => {
   res.json({ id, name, icon: icon || '', createdAt });
 });
 
-// Delete album
-app.delete('/api/albums/:id', getUserId, ensureUser, (req, res) => {
+app.delete('/api/albums/:id', getSessionUser, (req, res) => {
   const db = getDb();
   const album = db.prepare(
     'SELECT * FROM albums WHERE id = ? AND user_id = ?'
@@ -247,8 +583,7 @@ app.delete('/api/albums/:id', getUserId, ensureUser, (req, res) => {
   res.json({ ok: true });
 });
 
-// Add photo to album
-app.post('/api/photos/:photoId/albums/:albumId', getUserId, ensureUser, (req, res) => {
+app.post('/api/photos/:photoId/albums/:albumId', getSessionUser, (req, res) => {
   const db = getDb();
   db.prepare(
     'INSERT OR IGNORE INTO photo_albums (photo_id, album_id) VALUES (?, ?)'
@@ -256,8 +591,7 @@ app.post('/api/photos/:photoId/albums/:albumId', getUserId, ensureUser, (req, re
   res.json({ ok: true });
 });
 
-// Remove photo from album
-app.delete('/api/photos/:photoId/albums/:albumId', getUserId, ensureUser, (req, res) => {
+app.delete('/api/photos/:photoId/albums/:albumId', getSessionUser, (req, res) => {
   const db = getDb();
   db.prepare(
     'DELETE FROM photo_albums WHERE photo_id = ? AND album_id = ?'
@@ -265,8 +599,7 @@ app.delete('/api/photos/:photoId/albums/:albumId', getUserId, ensureUser, (req, 
   res.json({ ok: true });
 });
 
-// Get usage stats
-app.get('/api/usage', getUserId, ensureUser, (req, res) => {
+app.get('/api/usage', getSessionUser, (req, res) => {
   const db = getDb();
   const stats = db.prepare(
     'SELECT COUNT(*) as count, COALESCE(SUM(size), 0) as totalSize FROM photos WHERE user_id = ?'
@@ -274,7 +607,7 @@ app.get('/api/usage', getUserId, ensureUser, (req, res) => {
   res.json({
     count: stats.count,
     totalSize: stats.totalSize,
-    limit: 25 * 1024 * 1024 * 1024, // 25GB Cloudinary free plan
+    limit: 25 * 1024 * 1024 * 1024,
   });
 });
 
@@ -288,6 +621,7 @@ if (process.env.NODE_ENV === 'production') {
 // Start
 const PORT = process.env.PORT || 3001;
 initDb();
+cleanExpiredSessions();
 app.listen(PORT, () => {
   console.log(`Momento server running on port ${PORT}`);
 });
