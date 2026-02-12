@@ -1,17 +1,23 @@
 {
   "name": "momento",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "node server/index.js",
     "build": "tsc -b && vite build",
+    "start": "NODE_ENV=production node server/index.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "idb": "^8.0.3",
-    "jszip": "^3.10.1",
+    "better-sqlite3": "^11.7.0",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

@@ -8,22 +8,18 @@ interface PhotoPickerProps {
   onClose: () => void;
 }
 
-const PhotoPicker: FC<PhotoPickerProps> = ({ photos, albumId, onConfirm, onClose }) => {
+const PhotoPicker: FC<PhotoPickerProps> = ({
+  photos,
+  albumId,
+  onConfirm,
+  onClose,
+}) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Filter to photos NOT already in this album
   const available = useMemo(
     () => photos.filter((p) => !p.albumIds.includes(albumId)),
     [photos, albumId]
   );
-
-  const urls = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of available) {
-      map.set(p.id, URL.createObjectURL(p.thumbnail));
-    }
-    return map;
-  }, [available]);
 
   const toggle = (id: string) => {
     setSelectedIds((prev) => {
@@ -60,7 +56,11 @@ const PhotoPicker: FC<PhotoPickerProps> = ({ photos, albumId, onConfirm, onClose
                   onClick={() => toggle(photo.id)}
                   aria-label={photo.name}
                 >
-                  <img src={urls.get(photo.id)} alt={photo.name} loading="lazy" />
+                  <img
+                    src={photo.thumbnailUrl}
+                    alt={photo.name}
+                    loading="lazy"
+                  />
                   {selectedIds.has(photo.id) && (
                     <span className="picker-check">✓</span>
                   )}
