@@ -153,11 +153,11 @@ function App() {
     [selectMode]
   );
 
-  const handleSelectAll = useCallback(() => {
+  const handleSelectAllPhotos = useCallback(() => {
     setSelectedIds(new Set(photos.map((p) => p.id)));
   }, [photos]);
 
-  const handleDeselectAll = useCallback(() => {
+  const handleDeselectAllPhotos = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
 
@@ -281,11 +281,11 @@ function App() {
           <span className="select-toolbar-count">{selectedIds.size}枚選択中</span>
           <div className="select-toolbar-actions">
             {selectedIds.size < photos.length ? (
-              <button className="select-toolbar-btn" onClick={handleSelectAll}>
+              <button className="select-toolbar-btn" onClick={handleSelectAllPhotos}>
                 全選択
               </button>
             ) : (
-              <button className="select-toolbar-btn" onClick={handleDeselectAll}>
+              <button className="select-toolbar-btn" onClick={handleDeselectAllPhotos}>
                 全解除
               </button>
             )}
