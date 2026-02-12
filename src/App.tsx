@@ -89,9 +89,8 @@ function App() {
   const handleSelectAlbum = useCallback((id: string) => setActiveAlbumId(id), []);
 
   const handleAddFiles = useCallback(
-    async (files: FileList, quality: string) => {
-      const fileArray = Array.from(files);
-      const total = fileArray.length;
+    async (files: File[], quality: string) => {
+      const total = files.length;
       if (total === 0) return;
 
       setUploadProgress({ total, done: 0, failed: 0 });
@@ -99,7 +98,7 @@ function App() {
       let done = 0;
       let failed = 0;
 
-      for (const file of fileArray) {
+      for (const file of files) {
         try {
           const name = sanitizeFileName(file.name.replace(/\.[^.]+$/, ''));
           await uploadPhoto(file, activeAlbumId, quality, name);
