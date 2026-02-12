@@ -180,6 +180,18 @@ function App() {
     await loadUsage();
   }, [selectedIds, loadPhotos, loadUsage]);
 
+  const handleBulkRemoveFromAlbum = useCallback(async () => {
+    if (selectedIds.size === 0 || !activeAlbumId) return;
+    const count = selectedIds.size;
+    if (!confirm(`${count}枚の写真をアルバムから外しますか？`)) return;
+    for (const photoId of selectedIds) {
+      await removePhotoFromAlbum(photoId, activeAlbumId);
+    }
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    await loadPhotos();
+  }, [selectedIds, activeAlbumId, loadPhotos]);
+
   const handleToggleAlbum = useCallback(
     async (photoId: string, albumId: string) => {
       const photo = photos.find((p) => p.id === photoId);
@@ -234,9 +246,13 @@ function App() {
   const handleDeleteAlbum = useCallback(
     async (id: string) => {
       await deleteAlbumApi(id);
-      if (activeAlbumId === id) setActiveAlbumId(null);
       await loadAlbums();
-      await loadPhotos();
+      if (activeAlbumId === id) {
+        // setActiveAlbumId triggers loadPhotos via useEffect
+        setActiveAlbumId(null);
+      } else {
+        await loadPhotos();
+      }
     },
     [activeAlbumId, loadAlbums, loadPhotos]
   );
@@ -290,6 +306,15 @@ function App() {
             ) : (
               <button className="select-toolbar-btn" onClick={handleDeselectAllPhotos}>
                 全解除
+              </button>
+            )}
+            {activeAlbumId && (
+              <button
+                className="select-toolbar-btn"
+                onClick={handleBulkRemoveFromAlbum}
+                disabled={selectedIds.size === 0}
+              >
+                アルバムから外す
               </button>
             )}
             <button
