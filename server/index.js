@@ -40,8 +40,12 @@ if (process.env.NODE_ENV === 'production') {
 
 // --- WebAuthn Config ---
 const RP_NAME = 'Momento Lite';
-const RP_ID = process.env.RP_ID || 'localhost';
-const ORIGIN = process.env.ORIGIN || 'http://localhost:5173';
+
+function getWebAuthnConfig(req) {
+  const rpID = process.env.RP_ID || req.hostname;
+  const origin = process.env.ORIGIN || `${req.protocol}://${req.get('host')}`;
+  return { rpID, origin };
+}
 
 // In-memory challenge store (per-session, short-lived)
 const challengeStore = new Map();
@@ -207,9 +211,10 @@ app.post('/api/webauthn/register/options', getSessionUser, async (req, res) => {
       'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?'
     ).all(req.userId);
 
+    const { rpID, origin } = getWebAuthnConfig(req);
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
-      rpID: RP_ID,
+      rpID: rpID,
       userID: new TextEncoder().encode(req.userId),
       userName: req.userName,
       userDisplayName: req.userDisplayName || req.userName,
@@ -242,11 +247,12 @@ app.post('/api/webauthn/register/verify', getSessionUser, async (req, res) => {
       return res.status(400).json({ error: 'もう一度やり直してください' });
     }
 
+    const { rpID, origin } = getWebAuthnConfig(req);
     const verification = await verifyRegistrationResponse({
       response: req.body,
       expectedChallenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
     });
 
     if (!verification.verified || !verification.registrationInfo) {
@@ -300,8 +306,9 @@ app.post('/api/webauthn/login/options', async (req, res) => {
       }
     }
 
+    const { rpID } = getWebAuthnConfig(req);
     const options = await generateAuthenticationOptions({
-      rpID: RP_ID,
+      rpID: rpID,
       allowCredentials,
       userVerification: 'preferred',
     });
@@ -337,11 +344,12 @@ app.post('/api/webauthn/login/verify', async (req, res) => {
       return res.status(400).json({ error: '登録されていない認証情報です' });
     }
 
+    const { rpID, origin } = getWebAuthnConfig(req);
     const verification = await verifyAuthenticationResponse({
       response: authResponse,
       expectedChallenge: stored.challenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
       credential: {
         id: credential.credential_id,
         publicKey: Buffer.from(credential.public_key, 'base64'),
