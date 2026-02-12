@@ -454,6 +454,7 @@ body {
 
 .viewer-header .btn-icon {
   color: #fff;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .viewer-name {
