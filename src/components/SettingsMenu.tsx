@@ -140,7 +140,7 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
         <div className="settings-section">
           <p className="settings-section-title">アプリ情報</p>
           <p className="settings-hint">
-            Momento Lite v1.0
+            MomentoLite v1.0
             <br />
             写真はCloudinaryに安全に保存されます。
             <br />

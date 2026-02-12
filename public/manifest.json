@@ -1,6 +1,6 @@
 {
-  "name": "Momento Lite - 写真保存アプリ",
-  "short_name": "Momento",
+  "name": "MomentoLite - 写真保存アプリ",
+  "short_name": "MomentoLite",
   "description": "容量ゼロ・高画質・消えない写真保存アプリ",
   "start_url": "/",
   "display": "standalone",

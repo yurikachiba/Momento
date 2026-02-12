@@ -4,7 +4,7 @@ export default function LandingPage() {
   return (
     <div className="landing">
       <div className="landing-hero">
-        <div className="landing-logo">Momento</div>
+        <div className="landing-logo">MomentoLite</div>
         <h1 className="landing-title">
           大切な写真を
           <br />

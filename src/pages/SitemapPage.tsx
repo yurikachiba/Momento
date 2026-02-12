@@ -14,7 +14,7 @@ export default function SitemapPage() {
           <ul className="sitemap-list">
             <li>
               <Link to="/">トップページ</Link>
-              <span className="sitemap-desc">Momentoの紹介・機能説明</span>
+              <span className="sitemap-desc">MomentoLiteの紹介・機能説明</span>
             </li>
             <li>
               <Link to="/login">ログイン / 新規登録</Link>

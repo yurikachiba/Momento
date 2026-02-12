@@ -260,7 +260,7 @@ function App() {
   return (
     <div className="app">
       <Header
-        title="Momento"
+        title="MomentoLite"
         rightAction={
           <div className="header-actions">
             <button
