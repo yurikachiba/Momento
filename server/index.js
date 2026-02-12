@@ -545,6 +545,38 @@ app.patch('/api/photos/:id', getSessionUser, (req, res) => {
   res.json({ ok: true });
 });
 
+// Bulk delete photos
+app.post('/api/photos/bulk-delete', getSessionUser, async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: '削除する写真を選択してください' });
+  }
+
+  const db = getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  const photos = db.prepare(
+    `SELECT * FROM photos WHERE id IN (${placeholders}) AND user_id = ?`
+  ).all(...ids, req.userId);
+
+  // Delete from Cloudinary (best effort)
+  for (const photo of photos) {
+    try {
+      await cloudinary.uploader.destroy(photo.cloudinary_id);
+    } catch (err) {
+      console.error('Cloudinary delete error:', err);
+    }
+  }
+
+  const photoIds = photos.map((p) => p.id);
+  if (photoIds.length > 0) {
+    const ph = photoIds.map(() => '?').join(',');
+    db.prepare(`DELETE FROM photo_albums WHERE photo_id IN (${ph})`).run(...photoIds);
+    db.prepare(`DELETE FROM photos WHERE id IN (${ph})`).run(...photoIds);
+  }
+
+  res.json({ ok: true, deleted: photoIds.length });
+});
+
 app.delete('/api/photos/:id', getSessionUser, async (req, res) => {
   const db = getDb();
   const photo = db.prepare(

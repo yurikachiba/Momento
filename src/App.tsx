@@ -11,6 +11,7 @@ import {
   getPhotos,
   uploadPhoto,
   deletePhotoApi,
+  deletePhotosApi,
   getAlbums,
   createAlbum,
   deleteAlbumApi,
@@ -35,6 +36,8 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('momento-dark') === 'true';
   });
@@ -134,6 +137,46 @@ function App() {
     [loadPhotos, loadUsage]
   );
 
+  const handleToggleSelect = useCallback(
+    (id: string) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+      if (!selectMode) setSelectMode(true);
+    },
+    [selectMode]
+  );
+
+  const handleSelectAllPhotos = useCallback(() => {
+    setSelectedIds(new Set(photos.map((p) => p.id)));
+  }, [photos]);
+
+  const handleDeselectAllPhotos = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleExitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (!confirm(`${count}枚の写真を削除しますか？`)) return;
+    await deletePhotosApi(Array.from(selectedIds));
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    await loadPhotos();
+    await loadUsage();
+  }, [selectedIds, loadPhotos, loadUsage]);
+
   const handleToggleAlbum = useCallback(
     async (photoId: string, albumId: string) => {
       const photo = photos.find((p) => p.id === photoId);
@@ -230,16 +273,57 @@ function App() {
         onDeleteAlbum={handleDeleteAlbum}
       />
 
+      {selectMode && (
+        <div className="select-toolbar">
+          <button className="select-toolbar-close" onClick={handleExitSelectMode}>
+            ✕
+          </button>
+          <span className="select-toolbar-count">{selectedIds.size}枚選択中</span>
+          <div className="select-toolbar-actions">
+            {selectedIds.size < photos.length ? (
+              <button className="select-toolbar-btn" onClick={handleSelectAllPhotos}>
+                全選択
+              </button>
+            ) : (
+              <button className="select-toolbar-btn" onClick={handleDeselectAllPhotos}>
+                全解除
+              </button>
+            )}
+            <button
+              className="select-toolbar-btn danger"
+              onClick={handleBulkDelete}
+              disabled={selectedIds.size === 0}
+            >
+              削除
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="main-content">
-        {activeAlbumId && (
+        {activeAlbumId && !selectMode && (
           <button className="add-to-album-btn" onClick={handleOpenPicker}>
             + 既存の写真を追加
           </button>
         )}
-        <PhotoGrid photos={photos} onSelect={handleSelectPhoto} />
+        {!selectMode && photos.length > 0 && (
+          <button
+            className="select-mode-btn"
+            onClick={() => setSelectMode(true)}
+          >
+            選択
+          </button>
+        )}
+        <PhotoGrid
+          photos={photos}
+          onSelect={handleSelectPhoto}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
+        />
       </main>
 
-      <AddPhotoButton onFiles={handleAddFiles} />
+      {!selectMode && <AddPhotoButton onFiles={handleAddFiles} />}
 
       {showSettings && (
         <SettingsMenu onClose={() => setShowSettings(false)} usage={usage} />

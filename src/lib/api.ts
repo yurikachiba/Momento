@@ -76,6 +76,15 @@ export async function deletePhotoApi(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete photo');
 }
 
+export async function deletePhotosApi(ids: string[]): Promise<void> {
+  const res = await fetch(`${API_BASE}/photos/bulk-delete`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) throw new Error('Failed to delete photos');
+}
+
 export async function getAlbums(): Promise<Album[]> {
   const res = await fetch(`${API_BASE}/albums`, { headers: authHeaders() });
   if (!res.ok) throw new Error('Failed to fetch albums');
