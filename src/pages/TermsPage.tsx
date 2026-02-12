@@ -13,7 +13,7 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>第1条（適用）</h2>
           <p>
-            本利用規約（以下「本規約」）は、Momento（以下「本サービス」）の利用に関する条件を定めるものです。
+            本利用規約（以下「本規約」）は、MomentoLite（以下「本サービス」）の利用に関する条件を定めるものです。
             ユーザーは、本サービスを利用することにより、本規約に同意したものとみなされます。
           </p>
         </section>

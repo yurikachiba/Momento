@@ -109,7 +109,7 @@ export default function LoginPage() {
       <div className="login-card">
         <Link to="/" className="login-back">&larr; 戻る</Link>
         <div className="login-header">
-          <div className="login-logo">Momento</div>
+          <div className="login-logo">MomentoLite</div>
           <h1 className="login-title">
             {isRegister ? 'アカウント作成' : 'ログイン'}
           </h1>

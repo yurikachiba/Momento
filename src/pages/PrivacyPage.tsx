@@ -13,7 +13,7 @@ export default function PrivacyPage() {
         <section className="legal-section">
           <h2>1. はじめに</h2>
           <p>
-            Momento（以下「本サービス」）は、ユーザーのプライバシーを尊重し、個人情報の保護に努めます。
+            MomentoLite（以下「本サービス」）は、ユーザーのプライバシーを尊重し、個人情報の保護に努めます。
             本プライバシーポリシーは、本サービスの利用に際して収集する情報、その利用方法、および保護方法について説明します。
           </p>
         </section>

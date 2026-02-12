@@ -39,7 +39,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // --- WebAuthn Config ---
-const RP_NAME = 'Momento Lite';
+const RP_NAME = 'MomentoLite';
 
 function getWebAuthnConfig(req) {
   // Derive RP ID from the browser's Origin header so it matches the domain
@@ -680,6 +680,6 @@ export default app;
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => {
-    console.log(`Momento server running on port ${PORT}`);
+    console.log(`MomentoLite server running on port ${PORT}`);
   });
 }
