@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
+import { safeJson } from './api';
 
 interface User {
   id: string;
@@ -40,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
       .then((res) => {
         if (!res.ok) throw new Error('Invalid session');
-        return res.json();
+        return safeJson<{ user: User }>(res);
       })
       .then((data) => {
         setUser(data.user);
@@ -62,8 +63,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'ログインに失敗しました');
+    if (!res.ok) {
+      const data = await safeJson<{ error?: string }>(res).catch(() => null);
+      throw new Error(data?.error || 'ログインに失敗しました');
+    }
+    const data = await safeJson<{ token: string; user: User }>(res);
     setUser(data.user);
     setToken(data.token);
     localStorage.setItem('momento-token', data.token);
@@ -76,8 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, displayName }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '登録に失敗しました');
+    if (!res.ok) {
+      const data = await safeJson<{ error?: string }>(res).catch(() => null);
+      throw new Error(data?.error || '登録に失敗しました');
+    }
+    const data = await safeJson<{ token: string; user: User }>(res);
     setUser(data.user);
     setToken(data.token);
     localStorage.setItem('momento-token', data.token);

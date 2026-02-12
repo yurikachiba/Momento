@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { safeJson } from '../lib/api';
 import { startAuthentication } from '@simplewebauthn/browser';
 
 export default function LoginPage() {
@@ -33,7 +34,7 @@ export default function LoginPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username }),
         });
-        const data = await res.json();
+        const data = await safeJson<{ available: boolean }>(res);
         setWebauthnAvailable(data.available);
       } catch {
         setWebauthnAvailable(false);
@@ -71,7 +72,8 @@ export default function LoginPage() {
         body: JSON.stringify({ username }),
       });
       if (!optionsRes.ok) throw new Error('生体認証の準備に失敗しました');
-      const options = await optionsRes.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const options = await safeJson<any>(optionsRes);
       const { _challengeKey, ...authOptions } = options;
 
       // Start browser WebAuthn authentication
@@ -84,10 +86,10 @@ export default function LoginPage() {
         body: JSON.stringify({ ...authResponse, _challengeKey }),
       });
       if (!verifyRes.ok) {
-        const data = await verifyRes.json();
-        throw new Error(data.error || '生体認証ログインに失敗しました');
+        const data = await safeJson<{ error?: string }>(verifyRes).catch(() => null);
+        throw new Error(data?.error || '生体認証ログインに失敗しました');
       }
-      const data = await verifyRes.json();
+      const data = await safeJson<{ token: string; user: { id: string; username: string; displayName: string } }>(verifyRes);
       localStorage.setItem('momento-token', data.token);
       localStorage.setItem('momento-user', JSON.stringify(data.user));
       window.location.href = '/app';

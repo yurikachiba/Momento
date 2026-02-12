@@ -1,5 +1,6 @@
 import { useState, type FC } from 'react';
 import { useAuth } from '../lib/auth';
+import { safeJson } from '../lib/api';
 import { startRegistration } from '@simplewebauthn/browser';
 
 interface SettingsMenuProps {
@@ -40,7 +41,8 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
         },
       });
       if (!optionsRes.ok) throw new Error('準備に失敗しました');
-      const options = await optionsRes.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const options = await safeJson<any>(optionsRes);
 
       // Start browser WebAuthn registration
       const regResponse = await startRegistration({ optionsJSON: options });
@@ -55,8 +57,8 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
         body: JSON.stringify(regResponse),
       });
       if (!verifyRes.ok) {
-        const data = await verifyRes.json();
-        throw new Error(data.error || '登録に失敗しました');
+        const data = await safeJson<{ error?: string }>(verifyRes).catch(() => null);
+        throw new Error(data?.error || '登録に失敗しました');
       }
       setWebauthnStatus('生体認証を登録しました');
     } catch (err) {
