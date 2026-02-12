@@ -665,6 +665,10 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   line-height: normal;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .album-toggle.active {
@@ -675,6 +679,7 @@ body {
 
 .album-toggle-check {
   width: 16px;
+  flex-shrink: 0;
   font-size: 13px;
   font-weight: 700;
   text-align: center;
@@ -1988,6 +1993,34 @@ html.dark .recovery-banner-dismiss {
   }
 }
 
+@media (max-width: 480px) {
+  .picker-dialog {
+    padding: 16px;
+  }
+  .picker-dialog h3 {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+  .picker-hint {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .category-add-dialog {
+    padding: 20px;
+  }
+  .album-toggle {
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+  .album-toggle-check {
+    width: 14px;
+    font-size: 12px;
+  }
+  .viewer-menu-albums {
+    gap: 6px;
+  }
+}
+
 @media (max-width: 375px) {
   .category-tab {
     padding: 8px 14px;
@@ -2005,6 +2038,24 @@ html.dark .recovery-banner-dismiss {
   }
   .icon-option {
     font-size: 20px;
+  }
+  .picker-overlay {
+    padding: 12px;
+  }
+  .picker-dialog {
+    padding: 12px;
+  }
+  .category-add-dialog {
+    padding: 16px;
+  }
+  .category-add-dialog h3 {
+    font-size: 18px;
+    margin-bottom: 14px;
+  }
+  .album-toggle {
+    padding: 5px 10px;
+    font-size: 13px;
+    gap: 4px;
   }
 }
 
