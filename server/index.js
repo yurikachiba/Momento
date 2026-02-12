@@ -618,10 +618,17 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Start
-const PORT = process.env.PORT || 3001;
+// Initialize DB
 initDb();
 cleanExpiredSessions();
-app.listen(PORT, () => {
-  console.log(`Momento server running on port ${PORT}`);
-});
+
+// Export for Vercel serverless
+export default app;
+
+// Start server only when not on Vercel (Vercel uses serverless handler)
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`Momento server running on port ${PORT}`);
+  });
+}
