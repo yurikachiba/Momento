@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "https://momento-bc8j.onrender.com/api/$1" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|sitemap\\.xml|robots\\.txt).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
