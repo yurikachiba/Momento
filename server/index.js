@@ -42,6 +42,17 @@ if (process.env.NODE_ENV === 'production') {
 const RP_NAME = 'Momento Lite';
 
 function getWebAuthnConfig(req) {
+  // Derive RP ID from the browser's Origin header so it matches the domain
+  // the user is actually on (e.g. Vercel frontend proxying to Render backend)
+  const originHeader = req.get('origin');
+  if (originHeader) {
+    try {
+      const url = new URL(originHeader);
+      return { rpID: url.hostname, origin: url.origin };
+    } catch {
+      // fall through to defaults
+    }
+  }
   const rpID = process.env.RP_ID || req.hostname;
   const origin = process.env.ORIGIN || `${req.protocol}://${req.get('host')}`;
   return { rpID, origin };
