@@ -442,6 +442,8 @@ body {
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
 .viewer-header {
@@ -612,10 +614,17 @@ body {
 
 /* ===== Viewer Menu ===== */
 .viewer-menu {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
   background: var(--bg-secondary);
   border-radius: var(--radius) var(--radius) 0 0;
   padding: 24px 20px;
   animation: slide-up 0.25s ease-out;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 @keyframes slide-up {
@@ -1988,8 +1997,6 @@ html.dark .recovery-banner-dismiss {
 /* ===== PC: Viewer menu & memo textarea ===== */
 @media (min-width: 768px) {
   .viewer-menu {
-    flex-shrink: 0;
-    overflow-y: auto;
     max-height: 50vh;
   }
   .viewer-menu .memo-input {
