@@ -1,27 +1,99 @@
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-let db;
+let rawDb;
+let dbPath;
+let wrapper;
 
-export function initDb() {
+function _saveDb() {
+  if (rawDb && dbPath) {
+    const data = rawDb.export();
+    fs.writeFileSync(dbPath, Buffer.from(data));
+  }
+}
+
+class StatementWrapper {
+  constructor(db, sql) {
+    this._db = db;
+    this._sql = sql;
+  }
+
+  run(...params) {
+    if (params.length > 0) {
+      this._db.run(this._sql, params);
+    } else {
+      this._db.run(this._sql);
+    }
+    _saveDb();
+    return this;
+  }
+
+  get(...params) {
+    const stmt = this._db.prepare(this._sql);
+    if (params.length > 0) stmt.bind(params);
+    let result = undefined;
+    if (stmt.step()) {
+      result = stmt.getAsObject();
+    }
+    stmt.free();
+    return result;
+  }
+
+  all(...params) {
+    const stmt = this._db.prepare(this._sql);
+    if (params.length > 0) stmt.bind(params);
+    const results = [];
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  }
+}
+
+class DbWrapper {
+  prepare(sql) {
+    return new StatementWrapper(rawDb, sql);
+  }
+
+  exec(sql) {
+    rawDb.exec(sql);
+    _saveDb();
+  }
+
+  pragma(str) {
+    rawDb.run(`PRAGMA ${str}`);
+  }
+}
+
+export async function initDb() {
   const isVercel = !!process.env.VERCEL;
   const defaultPath = isVercel ? '/tmp/momento.db' : path.join(__dirname, '..', 'data', 'momento.db');
-  const dbPath = process.env.DB_PATH || defaultPath;
+  dbPath = process.env.DB_PATH || defaultPath;
 
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const SQL = await initSqlJs();
 
-  db.exec(`
+  if (fs.existsSync(dbPath)) {
+    const fileBuffer = fs.readFileSync(dbPath);
+    rawDb = new SQL.Database(fileBuffer);
+  } else {
+    rawDb = new SQL.Database();
+  }
+
+  wrapper = new DbWrapper();
+
+  rawDb.run('PRAGMA foreign_keys = ON');
+
+  rawDb.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT UNIQUE,
@@ -92,10 +164,12 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_webauthn_credential_id ON webauthn_credentials(credential_id);
   `);
 
-  return db;
+  _saveDb();
+
+  return wrapper;
 }
 
 export function getDb() {
-  if (!db) throw new Error('Database not initialized');
-  return db;
+  if (!wrapper) throw new Error('Database not initialized');
+  return wrapper;
 }

@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/[...path].js": {
-      "includeFiles": "server/**"
+      "includeFiles": "{server/**,node_modules/sql.js/dist/**}"
     }
   },
   "rewrites": [
