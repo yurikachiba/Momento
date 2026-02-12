@@ -8,7 +8,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let db;
 
 export function initDb() {
-  const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'momento.db');
+  const isVercel = !!process.env.VERCEL;
+  const defaultPath = isVercel ? '/tmp/momento.db' : path.join(__dirname, '..', 'data', 'momento.db');
+  const dbPath = process.env.DB_PATH || defaultPath;
 
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
