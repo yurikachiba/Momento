@@ -43,6 +43,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
     null
   );
   const touchMovedRef = useRef(false);
+  const skipTransitionRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const photo = photos[currentIndex];
@@ -67,21 +68,23 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   // --- Navigation ---
   const goTo = useCallback(
     (index: number) => {
-      if (index < 0 || index >= photos.length) return;
+      if (index < 0 || index >= photos.length || isAnimating) return;
       setIsAnimating(true);
       const direction = index > currentIndex ? -1 : 1;
       const width = containerRef.current?.offsetWidth ?? window.innerWidth;
       setOffsetX(direction * width);
 
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          setCurrentIndex(index);
-          setOffsetX(0);
-          setIsAnimating(false);
-        }, 250);
-      });
+      setTimeout(() => {
+        skipTransitionRef.current = true;
+        setCurrentIndex(index);
+        setOffsetX(0);
+        setIsAnimating(false);
+        requestAnimationFrame(() => {
+          skipTransitionRef.current = false;
+        });
+      }, 250);
     },
-    [currentIndex, photos.length]
+    [currentIndex, photos.length, isAnimating]
   );
 
   const goPrev = useCallback(
@@ -157,30 +160,35 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
     const threshold = width * 0.3;
     const shouldAdvance = Math.abs(offsetX) > threshold || velocity > 0.3;
 
+    setIsSwiping(false);
+    setIsAnimating(true);
+
     if (shouldAdvance && offsetX < 0 && currentIndex < photos.length - 1) {
-      setIsAnimating(true);
       setOffsetX(-width);
       setTimeout(() => {
+        skipTransitionRef.current = true;
         setCurrentIndex((i) => i + 1);
         setOffsetX(0);
         setIsAnimating(false);
-        setIsSwiping(false);
+        requestAnimationFrame(() => {
+          skipTransitionRef.current = false;
+        });
       }, 250);
     } else if (shouldAdvance && offsetX > 0 && currentIndex > 0) {
-      setIsAnimating(true);
       setOffsetX(width);
       setTimeout(() => {
+        skipTransitionRef.current = true;
         setCurrentIndex((i) => i - 1);
         setOffsetX(0);
         setIsAnimating(false);
-        setIsSwiping(false);
+        requestAnimationFrame(() => {
+          skipTransitionRef.current = false;
+        });
       }, 250);
     } else {
-      setIsAnimating(true);
       setOffsetX(0);
       setTimeout(() => {
         setIsAnimating(false);
-        setIsSwiping(false);
       }, 250);
     }
 
@@ -261,11 +269,9 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
             style={{
               transform: `translateX(${offsetX}px)`,
               transition:
-                isAnimating && !isSwiping
-                  ? 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-                  : isSwiping
-                    ? 'none'
-                    : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                isSwiping || skipTransitionRef.current
+                  ? 'none'
+                  : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
             }}
           >
             <div className="viewer-slide viewer-slide-prev">
