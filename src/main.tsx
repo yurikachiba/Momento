@@ -5,6 +5,9 @@ import './index.css';
 import App from './App';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+import SitemapPage from './pages/SitemapPage';
 import { AuthProvider, useAuth } from './lib/auth';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -60,6 +63,9 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/sitemap" element={<SitemapPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
