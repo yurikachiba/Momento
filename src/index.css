@@ -1985,9 +1985,14 @@ html.dark .recovery-banner-dismiss {
   }
 }
 
-/* ===== PC: Viewer memo textarea ===== */
+/* ===== PC: Viewer menu & memo textarea ===== */
 @media (min-width: 768px) {
+  .viewer-menu {
+    flex-shrink: 0;
+    overflow-y: auto;
+    max-height: 50vh;
+  }
   .viewer-menu .memo-input {
-    min-height: 120px;
+    min-height: 200px;
   }
 }
