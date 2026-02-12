@@ -21,6 +21,23 @@ export function initDb() {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
+  // Schema migration: if the users table exists but is missing expected columns,
+  // drop all tables so they get recreated with the correct schema.
+  const usersInfo = db.pragma('table_info(users)');
+  if (usersInfo.length > 0) {
+    const columnNames = usersInfo.map(c => c.name);
+    if (!columnNames.includes('username')) {
+      db.pragma('foreign_keys = OFF');
+      db.exec('DROP TABLE IF EXISTS photo_albums');
+      db.exec('DROP TABLE IF EXISTS photos');
+      db.exec('DROP TABLE IF EXISTS albums');
+      db.exec('DROP TABLE IF EXISTS webauthn_credentials');
+      db.exec('DROP TABLE IF EXISTS sessions');
+      db.exec('DROP TABLE IF EXISTS users');
+      db.pragma('foreign_keys = ON');
+    }
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

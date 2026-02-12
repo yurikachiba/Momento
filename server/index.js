@@ -52,7 +52,7 @@ function hashPassword(password) {
   return new Promise((resolve, reject) => {
     const salt = crypto.randomBytes(16);
     crypto.scrypt(password, salt, 64, (err, derived) => {
-      if (err) reject(err);
+      if (err) return reject(err);
       resolve(salt.toString('hex') + ':' + derived.toString('hex'));
     });
   });
@@ -63,7 +63,7 @@ function verifyPassword(password, stored) {
     const [saltHex, hashHex] = stored.split(':');
     const salt = Buffer.from(saltHex, 'hex');
     crypto.scrypt(password, salt, 64, (err, derived) => {
-      if (err) reject(err);
+      if (err) return reject(err);
       resolve(derived.toString('hex') === hashHex);
     });
   });
