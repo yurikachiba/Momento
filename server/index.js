@@ -662,6 +662,32 @@ app.get('/api/usage', getSessionUser, (req, res) => {
   });
 });
 
+// Download proxy – serves Cloudinary images with Content-Disposition so that
+// PWA standalone mode (where <a download> is ignored) can save photos reliably.
+app.get('/api/photos/:id/download', getSessionUser, async (req, res) => {
+  const db = getDb();
+  const photo = db.prepare(
+    'SELECT * FROM photos WHERE id = ? AND user_id = ?'
+  ).get(req.params.id, req.userId);
+  if (!photo) return res.status(404).json({ error: 'Photo not found' });
+
+  try {
+    const upstream = await fetch(photo.url);
+    if (!upstream.ok) throw new Error(`Cloudinary responded ${upstream.status}`);
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+    const filename = `${photo.name || 'photo'}.${ext}`;
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Download proxy error:', err);
+    res.status(502).json({ error: 'Failed to download image' });
+  }
+});
+
 // SPA fallback
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {

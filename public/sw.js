@@ -1,4 +1,4 @@
-const CACHE_NAME = 'momento-v2';
+const CACHE_NAME = 'momento-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -31,6 +31,15 @@ self.addEventListener('fetch', (event) => {
 
   // Cache Cloudinary images aggressively
   if (request.url.includes('res.cloudinary.com')) {
+    // Programmatic fetch (e.g. save/download) uses cors mode – bypass cache
+    // to avoid returning an opaque response cached from <img> loads.
+    if (request.mode === 'cors') {
+      event.respondWith(
+        fetch(request).catch(() => caches.match(request))
+      );
+      return;
+    }
+
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
