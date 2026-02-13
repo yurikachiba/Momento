@@ -200,14 +200,30 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
     try {
       const response = await fetch(photo.url);
       const blob = await response.blob();
+      const file = new File([blob], `${photo.name}.jpg`, {
+        type: blob.type || 'image/jpeg',
+      });
+
+      // On mobile (iOS/Android), use Share API for reliable save-to-device
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+          return;
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return;
+          // Share failed, fall through to download link
+        }
+      }
+
+      // Desktop fallback: download via blob URL
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = `${photo.name}.jpg`;
+      a.download = file.name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
     } catch {
       window.open(photo.url, '_blank');
     }
