@@ -196,11 +196,33 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   }, [offsetX, currentIndex, photos.length]);
 
   // --- Actions ---
+  const fetchBlob = async (): Promise<Blob> => {
+    // 1. Try direct cross-origin fetch (works when CORS headers present)
+    try {
+      const res = await fetch(photo.url, { mode: 'cors' });
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 0) return blob;
+      }
+    } catch {
+      // CORS or network error – fall through
+    }
+
+    // 2. Fallback: fetch via server download proxy (reliable in PWA)
+    const token = localStorage.getItem('momento-token');
+    const res = await fetch(`/api/photos/${photo.id}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('download failed');
+    return res.blob();
+  };
+
   const handleSave = async () => {
     try {
-      const response = await fetch(photo.url);
-      const blob = await response.blob();
-      const file = new File([blob], `${photo.name}.jpg`, {
+      const blob = await fetchBlob();
+      const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+      const filename = `${photo.name || 'photo'}.${ext}`;
+      const file = new File([blob], filename, {
         type: blob.type || 'image/jpeg',
       });
 
@@ -215,16 +237,17 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
         }
       }
 
-      // Desktop fallback: download via blob URL
+      // Desktop / non-Share fallback: download via blob URL
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = file.name;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
     } catch {
+      // Last resort: open original URL
       window.open(photo.url, '_blank');
     }
   };
@@ -232,9 +255,9 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   const handleShare = async () => {
     // Try sharing as a file first
     try {
-      const response = await fetch(photo.url);
-      const blob = await response.blob();
-      const file = new File([blob], `${photo.name}.jpg`, { type: blob.type });
+      const blob = await fetchBlob();
+      const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+      const file = new File([blob], `${photo.name || 'photo'}.${ext}`, { type: blob.type });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file] });
         return;
