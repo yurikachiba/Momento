@@ -243,10 +243,6 @@ const CategoryBar: FC<CategoryBarProps> = ({
               autoFocus
             />
             <div className="dialog-actions">
-              <button className="btn-danger" onClick={handleDeleteFromEdit}>
-                削除
-              </button>
-              <div style={{ flex: 1 }} />
               <button className="btn-secondary" onClick={() => setEditingAlbum(null)}>
                 キャンセル
               </button>
@@ -254,6 +250,9 @@ const CategoryBar: FC<CategoryBarProps> = ({
                 保存
               </button>
             </div>
+            <button className="btn-danger" onClick={handleDeleteFromEdit}>
+              削除
+            </button>
           </div>
         </div>
       )}
