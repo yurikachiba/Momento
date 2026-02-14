@@ -296,10 +296,15 @@ body {
 .dialog-actions {
   display: flex;
   gap: 12px;
+  align-items: center;
 }
 
 .dialog-actions button {
   flex: 1;
+}
+
+.dialog-actions + .btn-danger {
+  margin-top: 12px;
 }
 
 /* ===== Main Content ===== */
