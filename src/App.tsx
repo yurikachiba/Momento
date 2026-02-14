@@ -7,6 +7,7 @@ import CategoryBar from './components/CategoryBar';
 import AddPhotoButton from './components/AddPhotoButton';
 import SettingsMenu from './components/SettingsMenu';
 import UsageBar from './components/UsageBar';
+import Toast from './components/Toast';
 import {
   getPhotos,
   uploadPhoto,
@@ -17,7 +18,9 @@ import {
   deleteAlbumApi,
   addPhotoToAlbum,
   removePhotoFromAlbum,
+  bulkAddToAlbum,
   bulkRemoveFromAlbum,
+  updateAlbum,
   getUsage,
   updatePhotoMeta,
   getSharedAlbums,
@@ -50,6 +53,13 @@ function App() {
     totalSize: number;
     limit: number;
   } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    setToast(null);
+    // 一旦リセットしてから再表示（連続削除対応）
+    requestAnimationFrame(() => setToast(message));
+  }, []);
 
   // 共有アルバム関連
   const [sharedAlbums, setSharedAlbums] = useState<SharedAlbum[]>([]);
@@ -175,6 +185,7 @@ function App() {
       setUsage((prev) =>
         prev ? { ...prev, count: Math.max(0, prev.count - 1) } : prev
       );
+      showToast('写真を削除しました');
       // API呼び出しはバックグラウンドで実行
       deletePhotoApi(id).catch(() => {
         // 失敗時はリロードして整合性を回復
@@ -182,7 +193,7 @@ function App() {
         loadUsage();
       });
     },
-    [loadPhotos, loadUsage]
+    [loadPhotos, loadUsage, showToast]
   );
 
   const handleToggleSelect = useCallback(
@@ -226,12 +237,13 @@ function App() {
     setUsage((prev) =>
       prev ? { ...prev, count: Math.max(0, prev.count - count) } : prev
     );
+    showToast(`${count}枚の写真を削除しました`);
     // API呼び出しはバックグラウンドで実行
     deletePhotosApi(idsToDelete).catch(() => {
       loadPhotos();
       loadUsage();
     });
-  }, [selectedIds, loadPhotos, loadUsage]);
+  }, [selectedIds, loadPhotos, loadUsage, showToast]);
 
   const handleBulkRemoveFromAlbum = useCallback(async () => {
     if (selectedIds.size === 0 || !activeAlbumId) return;
@@ -243,11 +255,12 @@ function App() {
     setPhotos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
     setSelectMode(false);
     setSelectedIds(new Set());
+    showToast(`${count}枚の写真をアルバムから外しました`);
     // 一括API呼び出し（N回→1回に削減）
     bulkRemoveFromAlbum(albumId, idsToRemove).catch(() => {
       loadPhotos();
     });
-  }, [selectedIds, activeAlbumId, loadPhotos]);
+  }, [selectedIds, activeAlbumId, loadPhotos, showToast]);
 
   const handleToggleAlbum = useCallback(
     async (photoId: string, albumId: string) => {
@@ -282,10 +295,8 @@ function App() {
 
   const handleAddPhotosToAlbum = useCallback(
     async (photoIds: string[]) => {
-      if (!activeAlbumId) return;
-      for (const id of photoIds) {
-        await addPhotoToAlbum(id, activeAlbumId);
-      }
+      if (!activeAlbumId || photoIds.length === 0) return;
+      await bulkAddToAlbum(activeAlbumId, photoIds);
       setShowPicker(false);
       await loadPhotos();
     },
@@ -300,10 +311,19 @@ function App() {
     [loadAlbums]
   );
 
+  const handleRenameAlbum = useCallback(
+    async (id: string, name: string, icon: string) => {
+      await updateAlbum(id, { name, icon });
+      await loadAlbums();
+    },
+    [loadAlbums]
+  );
+
   const handleDeleteAlbum = useCallback(
     async (id: string) => {
       await deleteAlbumApi(id);
       await loadAlbums();
+      showToast('アルバムを削除しました');
       if (activeAlbumId === id) {
         // setActiveAlbumId triggers loadPhotos via useEffect
         setActiveAlbumId(null);
@@ -311,7 +331,7 @@ function App() {
         await loadPhotos();
       }
     },
-    [activeAlbumId, loadAlbums, loadPhotos]
+    [activeAlbumId, loadAlbums, loadPhotos, showToast]
   );
 
   // 現在閲覧中の共有アルバム情報
@@ -349,6 +369,7 @@ function App() {
         onSelectAll={handleSelectAll}
         onSelectAlbum={handleSelectAlbum}
         onAddAlbum={handleAddAlbum}
+        onRenameAlbum={handleRenameAlbum}
         onDeleteAlbum={handleDeleteAlbum}
         sharedAlbums={sharedAlbums}
         activeSharedAlbumId={activeSharedAlbumId}
@@ -467,6 +488,12 @@ function App() {
           </div>
         </div>
       )}
+
+      <Toast
+        message={toast ?? ''}
+        visible={toast !== null}
+        onHide={() => setToast(null)}
+      />
 
       {selectedPhotoIndex !== null && photos.length > 0 && (
         <PhotoViewer

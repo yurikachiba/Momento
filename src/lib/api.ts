@@ -160,6 +160,30 @@ export async function removePhotoFromAlbum(
   if (!res.ok) throw new Error('Failed to remove photo from album');
 }
 
+export async function bulkAddToAlbum(
+  albumId: string,
+  photoIds: string[]
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/albums/${albumId}/bulk-add`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoIds }),
+  });
+  if (!res.ok) throw new Error('Failed to add photos to album');
+}
+
+export async function updateAlbum(
+  id: string,
+  data: { name?: string; icon?: string }
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/albums/${id}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update album');
+}
+
 export async function bulkRemoveFromAlbum(
   albumId: string,
   photoIds: string[]

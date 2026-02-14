@@ -639,6 +639,23 @@ app.post('/api/albums', getSessionUser, (req, res) => {
   res.json({ id, name, icon: icon || '', createdAt });
 });
 
+app.patch('/api/albums/:id', getSessionUser, (req, res) => {
+  const db = getDb();
+  const album = db.prepare(
+    'SELECT * FROM albums WHERE id = ? AND user_id = ?'
+  ).get(req.params.id, req.userId);
+  if (!album) return res.status(404).json({ error: 'アルバムが見つかりません' });
+
+  const { name, icon } = req.body;
+  if (name !== undefined) {
+    db.prepare('UPDATE albums SET name = ? WHERE id = ?').run(name, req.params.id);
+  }
+  if (icon !== undefined) {
+    db.prepare('UPDATE albums SET icon = ? WHERE id = ?').run(icon, req.params.id);
+  }
+  res.json({ ok: true });
+});
+
 app.delete('/api/albums/:id', getSessionUser, (req, res) => {
   const db = getDb();
   const album = db.prepare(
@@ -665,6 +682,26 @@ app.delete('/api/photos/:photoId/albums/:albumId', getSessionUser, (req, res) =>
   db.prepare(
     'DELETE FROM photo_albums WHERE photo_id = ? AND album_id = ?'
   ).run(req.params.photoId, req.params.albumId);
+  res.json({ ok: true });
+});
+
+// 一括アルバム追加
+app.post('/api/albums/:albumId/bulk-add', getSessionUser, (req, res) => {
+  const { photoIds } = req.body;
+  if (!Array.isArray(photoIds) || photoIds.length === 0) {
+    return res.status(400).json({ error: '写真を選択してください' });
+  }
+  const db = getDb();
+  const album = db.prepare('SELECT id FROM albums WHERE id = ? AND user_id = ?').get(req.params.albumId, req.userId);
+  if (!album) return res.status(404).json({ error: 'アルバムが見つかりません' });
+
+  const insert = db.prepare('INSERT OR IGNORE INTO photo_albums (photo_id, album_id) VALUES (?, ?)');
+  const bulkInsert = db.transaction((ids) => {
+    for (const id of ids) {
+      insert.run(id, req.params.albumId);
+    }
+  });
+  bulkInsert(photoIds);
   res.json({ ok: true });
 });
 
