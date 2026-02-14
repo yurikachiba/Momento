@@ -17,6 +17,7 @@ import {
   deleteAlbumApi,
   addPhotoToAlbum,
   removePhotoFromAlbum,
+  bulkRemoveFromAlbum,
   getUsage,
   updatePhotoMeta,
 } from './lib/api';
@@ -132,10 +133,18 @@ function App() {
 
   const handleDelete = useCallback(
     async (id: string) => {
-      await deletePhotoApi(id);
+      // 楽観的にUIから即座に削除
+      setPhotos((prev) => prev.filter((p) => p.id !== id));
       setSelectedPhotoIndex(null);
-      await loadPhotos();
-      await loadUsage();
+      setUsage((prev) =>
+        prev ? { ...prev, count: Math.max(0, prev.count - 1) } : prev
+      );
+      // API呼び出しはバックグラウンドで実行
+      deletePhotoApi(id).catch(() => {
+        // 失敗時はリロードして整合性を回復
+        loadPhotos();
+        loadUsage();
+      });
     },
     [loadPhotos, loadUsage]
   );
@@ -173,23 +182,35 @@ function App() {
     if (selectedIds.size === 0) return;
     const count = selectedIds.size;
     if (!confirm(`${count}枚の写真を削除しますか？`)) return;
-    await deletePhotosApi(Array.from(selectedIds));
+    const idsToDelete = Array.from(selectedIds);
+    // 楽観的にUIから即座に削除
+    setPhotos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
     setSelectMode(false);
     setSelectedIds(new Set());
-    await loadPhotos();
-    await loadUsage();
+    setUsage((prev) =>
+      prev ? { ...prev, count: Math.max(0, prev.count - count) } : prev
+    );
+    // API呼び出しはバックグラウンドで実行
+    deletePhotosApi(idsToDelete).catch(() => {
+      loadPhotos();
+      loadUsage();
+    });
   }, [selectedIds, loadPhotos, loadUsage]);
 
   const handleBulkRemoveFromAlbum = useCallback(async () => {
     if (selectedIds.size === 0 || !activeAlbumId) return;
     const count = selectedIds.size;
     if (!confirm(`${count}枚の写真をアルバムから外しますか？`)) return;
-    for (const photoId of selectedIds) {
-      await removePhotoFromAlbum(photoId, activeAlbumId);
-    }
+    const idsToRemove = Array.from(selectedIds);
+    const albumId = activeAlbumId;
+    // 楽観的にUIから即座に削除
+    setPhotos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
     setSelectMode(false);
     setSelectedIds(new Set());
-    await loadPhotos();
+    // 一括API呼び出し（N回→1回に削減）
+    bulkRemoveFromAlbum(albumId, idsToRemove).catch(() => {
+      loadPhotos();
+    });
   }, [selectedIds, activeAlbumId, loadPhotos]);
 
   const handleToggleAlbum = useCallback(

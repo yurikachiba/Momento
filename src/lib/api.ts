@@ -160,6 +160,18 @@ export async function removePhotoFromAlbum(
   if (!res.ok) throw new Error('Failed to remove photo from album');
 }
 
+export async function bulkRemoveFromAlbum(
+  albumId: string,
+  photoIds: string[]
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/albums/${albumId}/bulk-remove`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoIds }),
+  });
+  if (!res.ok) throw new Error('Failed to remove photos from album');
+}
+
 export async function getUsage(): Promise<{
   count: number;
   totalSize: number;
