@@ -17,7 +17,9 @@ import {
   deleteAlbumApi,
   addPhotoToAlbum,
   removePhotoFromAlbum,
+  bulkAddToAlbum,
   bulkRemoveFromAlbum,
+  updateAlbum,
   getUsage,
   updatePhotoMeta,
 } from './lib/api';
@@ -246,10 +248,8 @@ function App() {
 
   const handleAddPhotosToAlbum = useCallback(
     async (photoIds: string[]) => {
-      if (!activeAlbumId) return;
-      for (const id of photoIds) {
-        await addPhotoToAlbum(id, activeAlbumId);
-      }
+      if (!activeAlbumId || photoIds.length === 0) return;
+      await bulkAddToAlbum(activeAlbumId, photoIds);
       setShowPicker(false);
       await loadPhotos();
     },
@@ -259,6 +259,14 @@ function App() {
   const handleAddAlbum = useCallback(
     async (name: string, icon: string) => {
       await createAlbum(name, icon);
+      await loadAlbums();
+    },
+    [loadAlbums]
+  );
+
+  const handleRenameAlbum = useCallback(
+    async (id: string, name: string, icon: string) => {
+      await updateAlbum(id, { name, icon });
       await loadAlbums();
     },
     [loadAlbums]
@@ -310,6 +318,7 @@ function App() {
         onSelectAll={handleSelectAll}
         onSelectAlbum={handleSelectAlbum}
         onAddAlbum={handleAddAlbum}
+        onRenameAlbum={handleRenameAlbum}
         onDeleteAlbum={handleDeleteAlbum}
       />
 
