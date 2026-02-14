@@ -17,6 +17,7 @@ interface PhotoViewerProps {
   onUpdateMemo: (photoId: string, memo: string) => void;
   readOnly?: boolean;
   sharedAlbumId?: string | null;
+  activeAlbumId?: string | null;
 }
 
 const canShare =
@@ -35,6 +36,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   onUpdateMemo,
   readOnly = false,
   sharedAlbumId = null,
+  activeAlbumId = null,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showMenu, setShowMenu] = useState(false);
@@ -399,7 +401,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
             {albums.length > 0 && (
               <div className="viewer-menu-section">
-                <p className="viewer-menu-label">アルバムに追加</p>
+                <p className="viewer-menu-label">{activeAlbumId ? '他のアルバムに追加' : 'アルバムに追加'}</p>
                 <div className="viewer-menu-albums">
                   {albums.map((album) => {
                     const inAlbum = photo.albumIds.includes(album.id);
