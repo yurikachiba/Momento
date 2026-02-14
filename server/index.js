@@ -574,42 +574,43 @@ app.post('/api/photos/bulk-delete', getSessionUser, async (req, res) => {
     `SELECT * FROM photos WHERE id IN (${placeholders}) AND user_id = ?`
   ).all(...ids, req.userId);
 
-  // Delete from Cloudinary (best effort)
-  for (const photo of photos) {
-    try {
-      await cloudinary.uploader.destroy(photo.cloudinary_id, { type: 'authenticated' });
-    } catch (err) {
-      console.error('Cloudinary delete error:', err);
-    }
-  }
-
   const photoIds = photos.map((p) => p.id);
   if (photoIds.length > 0) {
+    // DB削除を即座に実行
     const ph = photoIds.map(() => '?').join(',');
     db.prepare(`DELETE FROM photo_albums WHERE photo_id IN (${ph})`).run(...photoIds);
     db.prepare(`DELETE FROM photos WHERE id IN (${ph})`).run(...photoIds);
   }
 
   res.json({ ok: true, deleted: photoIds.length });
+
+  // Cloudinary削除はバックグラウンドで並列実行（レスポンスをブロックしない）
+  Promise.all(
+    photos.map((photo) =>
+      cloudinary.uploader.destroy(photo.cloudinary_id, { type: 'authenticated' }).catch((err) => {
+        console.error('Cloudinary delete error:', err);
+      })
+    )
+  ).catch(() => {});
 });
 
-app.delete('/api/photos/:id', getSessionUser, async (req, res) => {
+app.delete('/api/photos/:id', getSessionUser, (req, res) => {
   const db = getDb();
   const photo = db.prepare(
     'SELECT * FROM photos WHERE id = ? AND user_id = ?'
   ).get(req.params.id, req.userId);
   if (!photo) return res.status(404).json({ error: 'Photo not found' });
 
-  try {
-    await cloudinary.uploader.destroy(photo.cloudinary_id, { type: 'authenticated' });
-  } catch (err) {
-    console.error('Cloudinary delete error:', err);
-  }
-
+  // DB削除を即座に実行
   db.prepare('DELETE FROM photo_albums WHERE photo_id = ?').run(req.params.id);
   db.prepare('DELETE FROM photos WHERE id = ?').run(req.params.id);
 
   res.json({ ok: true });
+
+  // Cloudinary削除はバックグラウンドで実行（レスポンスをブロックしない）
+  cloudinary.uploader.destroy(photo.cloudinary_id, { type: 'authenticated' }).catch((err) => {
+    console.error('Cloudinary delete error:', err);
+  });
 });
 
 app.get('/api/albums', getSessionUser, (req, res) => {
@@ -663,6 +664,20 @@ app.delete('/api/photos/:photoId/albums/:albumId', getSessionUser, (req, res) =>
   db.prepare(
     'DELETE FROM photo_albums WHERE photo_id = ? AND album_id = ?'
   ).run(req.params.photoId, req.params.albumId);
+  res.json({ ok: true });
+});
+
+// 一括アルバム解除
+app.post('/api/albums/:albumId/bulk-remove', getSessionUser, (req, res) => {
+  const { photoIds } = req.body;
+  if (!Array.isArray(photoIds) || photoIds.length === 0) {
+    return res.status(400).json({ error: '写真を選択してください' });
+  }
+  const db = getDb();
+  const ph = photoIds.map(() => '?').join(',');
+  db.prepare(
+    `DELETE FROM photo_albums WHERE album_id = ? AND photo_id IN (${ph})`
+  ).run(req.params.albumId, ...photoIds);
   res.json({ ok: true });
 });
 
