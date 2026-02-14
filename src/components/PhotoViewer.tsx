@@ -41,6 +41,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showMenu, setShowMenu] = useState(false);
   const [memo, setMemo] = useState('');
+  const [isOriginalSize, setIsOriginalSize] = useState(false);
 
   const [offsetX, setOffsetX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -54,9 +55,10 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
   const photo = photos[currentIndex];
 
-  // Sync memo with current photo
+  // Sync memo with current photo and reset original size mode
   useEffect(() => {
     setMemo(photo.memo || '');
+    setIsOriginalSize(false);
   }, [photo.id, photo.memo]);
 
   // Preload adjacent images
@@ -116,7 +118,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   // --- Touch handlers ---
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (isAnimating || showMenu) return;
+      if (isAnimating || showMenu || isOriginalSize) return;
       const touch = e.touches[0];
       touchStartRef.current = {
         x: touch.clientX,
@@ -126,12 +128,12 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
       touchMovedRef.current = false;
       setIsSwiping(false);
     },
-    [isAnimating, showMenu]
+    [isAnimating, showMenu, isOriginalSize]
   );
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (!touchStartRef.current || isAnimating || showMenu) return;
+      if (!touchStartRef.current || isAnimating || showMenu || isOriginalSize) return;
       const touch = e.touches[0];
       const dx = touch.clientX - touchStartRef.current.x;
       const dy = touch.clientY - touchStartRef.current.y;
@@ -150,7 +152,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
       setOffsetX(dampened);
     },
-    [isAnimating, showMenu, currentIndex, photos.length]
+    [isAnimating, showMenu, isOriginalSize, currentIndex, photos.length]
   );
 
   const handleTouchEnd = useCallback(() => {
@@ -326,7 +328,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
         {/* Swipe area */}
         <div
           ref={containerRef}
-          className="viewer-swipe-container"
+          className={`viewer-swipe-container${isOriginalSize ? ' viewer-original-size' : ''}`}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -334,22 +336,26 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
           <div
             className="viewer-swipe-track"
             style={{
-              transform: `translateX(${offsetX}px)`,
+              transform: isOriginalSize ? 'none' : `translateX(${offsetX}px)`,
               transition:
-                isSwiping || skipTransitionRef.current
+                isOriginalSize || isSwiping || skipTransitionRef.current
                   ? 'none'
                   : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
             }}
           >
-            <div className="viewer-slide viewer-slide-prev">
-              {prevUrl && <img src={prevUrl} alt="" className="viewer-image" />}
-            </div>
-            <div className="viewer-slide viewer-slide-current">
+            {!isOriginalSize && (
+              <div className="viewer-slide viewer-slide-prev">
+                {prevUrl && <img src={prevUrl} alt="" className="viewer-image" />}
+              </div>
+            )}
+            <div className={`viewer-slide viewer-slide-current${isOriginalSize ? ' viewer-slide-original' : ''}`}>
               <img src={photo.url} alt={photo.name} className="viewer-image" />
             </div>
-            <div className="viewer-slide viewer-slide-next">
-              {nextUrl && <img src={nextUrl} alt="" className="viewer-image" />}
-            </div>
+            {!isOriginalSize && (
+              <div className="viewer-slide viewer-slide-next">
+                {nextUrl && <img src={nextUrl} alt="" className="viewer-image" />}
+              </div>
+            )}
           </div>
 
           {currentIndex > 0 && (
@@ -383,6 +389,13 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
               共有
             </button>
           )}
+          <button
+            className={`viewer-action-btn${isOriginalSize ? ' viewer-action-btn-active' : ''}`}
+            onClick={() => setIsOriginalSize(!isOriginalSize)}
+          >
+            <span className="viewer-action-icon">{isOriginalSize ? '🔍' : '🔎'}</span>
+            {isOriginalSize ? 'フィット' : '原寸'}
+          </button>
         </div>
 
         {showMenu && !readOnly && (
