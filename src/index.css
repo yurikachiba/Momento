@@ -490,16 +490,9 @@ body {
   flex: 1;
   position: relative;
   overflow: hidden;
-  touch-action: pan-y;
+  touch-action: none;
   display: flex;
   align-items: center;
-}
-
-/* Original size (100%) mode */
-.viewer-swipe-container.viewer-original-size {
-  overflow: auto;
-  touch-action: auto;
-  align-items: flex-start;
 }
 
 .viewer-swipe-track {
@@ -510,16 +503,6 @@ body {
   will-change: transform;
 }
 
-.viewer-original-size .viewer-swipe-track {
-  width: auto;
-  height: auto;
-  min-width: 100%;
-  min-height: 100%;
-  will-change: auto;
-  justify-content: center;
-  align-items: center;
-}
-
 .viewer-slide {
   flex-shrink: 0;
   width: 100%;
@@ -528,6 +511,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 0 16px;
+  overflow: hidden;
 }
 
 .viewer-slide-prev {
@@ -540,27 +524,27 @@ body {
   position: relative;
 }
 
-.viewer-slide-original {
-  width: auto;
-  height: auto;
-  min-width: 100%;
-  min-height: 100%;
-  padding: 0;
-}
-
-.viewer-slide-original .viewer-image {
-  max-width: none;
-  max-height: none;
-  width: auto;
-  height: auto;
-  border-radius: 0;
-  pointer-events: auto;
-}
-
 .viewer-slide-next {
   position: absolute;
   right: -100%;
   top: 0;
+}
+
+/* Zoom level badge */
+.viewer-zoom-badge {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Arrow buttons (desktop) */

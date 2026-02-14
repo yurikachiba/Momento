@@ -25,6 +25,44 @@ const canShare =
   typeof navigator.canShare === 'function';
 
 const PRELOAD_COUNT = 2;
+const MIN_SCALE = 1;
+const MAX_SCALE = 5;
+const DOUBLE_TAP_SCALE = 2.5;
+const DOUBLE_TAP_DELAY = 300;
+
+function clamp(val: number, min: number, max: number) {
+  return Math.min(Math.max(val, min), max);
+}
+
+/** Constrain translate so the image doesn't pan beyond its edges */
+function clampTranslate(
+  tx: number,
+  ty: number,
+  scale: number,
+  container: HTMLElement | null,
+): { x: number; y: number } {
+  if (!container || scale <= 1) return { x: 0, y: 0 };
+  const rect = container.getBoundingClientRect();
+  const maxTx = (rect.width * (scale - 1)) / 2;
+  const maxTy = (rect.height * (scale - 1)) / 2;
+  return {
+    x: clamp(tx, -maxTx, maxTx),
+    y: clamp(ty, -maxTy, maxTy),
+  };
+}
+
+function getTouchDistance(t1: Touch, t2: Touch): number {
+  const dx = t1.clientX - t2.clientX;
+  const dy = t1.clientY - t2.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getTouchCenter(t1: Touch, t2: Touch): { x: number; y: number } {
+  return {
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2,
+  };
+}
 
 const PhotoViewer: FC<PhotoViewerProps> = ({
   photos,
@@ -41,8 +79,8 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showMenu, setShowMenu] = useState(false);
   const [memo, setMemo] = useState('');
-  const [isOriginalSize, setIsOriginalSize] = useState(false);
 
+  // Swipe navigation state
   const [offsetX, setOffsetX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -53,13 +91,49 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   const skipTransitionRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Zoom state
+  const [scale, setScale] = useState(1);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const [zoomTransition, setZoomTransition] = useState(false);
+
+  // Zoom gesture refs
+  const lastTapRef = useRef(0);
+  const isPinchingRef = useRef(false);
+  const pinchStartDistRef = useRef(0);
+  const pinchStartScaleRef = useRef(1);
+  const pinchStartCenterRef = useRef({ x: 0, y: 0 });
+  const pinchStartTranslateRef = useRef({ x: 0, y: 0 });
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const panStartTranslateRef = useRef({ x: 0, y: 0 });
+  const scaleRef = useRef(1);
+  const translateXRef = useRef(0);
+  const translateYRef = useRef(0);
+
+  // Keep refs in sync with state
+  scaleRef.current = scale;
+  translateXRef.current = translateX;
+  translateYRef.current = translateY;
+
+  const isZoomed = scale > 1.05;
+
   const photo = photos[currentIndex];
 
-  // Sync memo with current photo and reset original size mode
+  // Reset zoom
+  const resetZoom = useCallback((animate = true) => {
+    if (animate) setZoomTransition(true);
+    setScale(1);
+    setTranslateX(0);
+    setTranslateY(0);
+    if (animate) setTimeout(() => setZoomTransition(false), 300);
+  }, []);
+
+  // Sync memo with current photo and reset zoom
   useEffect(() => {
     setMemo(photo.memo || '');
-    setIsOriginalSize(false);
-  }, [photo.id, photo.memo]);
+    resetZoom(false);
+  }, [photo.id, photo.memo, resetZoom]);
 
   // Preload adjacent images
   useEffect(() => {
@@ -109,31 +183,125 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') goPrev();
       else if (e.key === 'ArrowRight') goNext();
-      else if (e.key === 'Escape') onClose();
+      else if (e.key === 'Escape') {
+        if (isZoomed) resetZoom();
+        else onClose();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [goPrev, goNext, onClose]);
+  }, [goPrev, goNext, onClose, isZoomed, resetZoom]);
 
   // --- Touch handlers ---
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (isAnimating || showMenu || isOriginalSize) return;
-      const touch = e.touches[0];
-      touchStartRef.current = {
-        x: touch.clientX,
-        y: touch.clientY,
-        time: Date.now(),
-      };
-      touchMovedRef.current = false;
-      setIsSwiping(false);
+      if (isAnimating || showMenu) return;
+
+      // Pinch start (2 fingers)
+      if (e.touches.length === 2) {
+        isPinchingRef.current = true;
+        isPanningRef.current = false;
+        const dist = getTouchDistance(e.touches[0], e.touches[1]);
+        pinchStartDistRef.current = dist;
+        pinchStartScaleRef.current = scaleRef.current;
+        pinchStartCenterRef.current = getTouchCenter(e.touches[0], e.touches[1]);
+        pinchStartTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+        return;
+      }
+
+      // Single finger
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const now = Date.now();
+
+        // Double tap detection
+        if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+          lastTapRef.current = 0;
+          if (isZoomed) {
+            // Zoom out
+            resetZoom();
+          } else {
+            // Zoom in to double-tap point
+            setZoomTransition(true);
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) {
+              const cx = touch.clientX - rect.left - rect.width / 2;
+              const cy = touch.clientY - rect.top - rect.height / 2;
+              // Translate so the tapped point stays roughly centered
+              const newTx = -cx * (DOUBLE_TAP_SCALE - 1);
+              const newTy = -cy * (DOUBLE_TAP_SCALE - 1);
+              const clamped = clampTranslate(newTx, newTy, DOUBLE_TAP_SCALE, containerRef.current);
+              setScale(DOUBLE_TAP_SCALE);
+              setTranslateX(clamped.x);
+              setTranslateY(clamped.y);
+            } else {
+              setScale(DOUBLE_TAP_SCALE);
+            }
+            setTimeout(() => setZoomTransition(false), 300);
+          }
+          return;
+        }
+        lastTapRef.current = now;
+
+        if (isZoomed) {
+          // Start panning
+          isPanningRef.current = true;
+          panStartRef.current = { x: touch.clientX, y: touch.clientY };
+          panStartTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+        } else {
+          // Normal swipe start
+          touchStartRef.current = {
+            x: touch.clientX,
+            y: touch.clientY,
+            time: Date.now(),
+          };
+          touchMovedRef.current = false;
+          setIsSwiping(false);
+        }
+      }
     },
-    [isAnimating, showMenu, isOriginalSize]
+    [isAnimating, showMenu, isZoomed, resetZoom]
   );
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (!touchStartRef.current || isAnimating || showMenu || isOriginalSize) return;
+      if (isAnimating || showMenu) return;
+
+      // Pinch move
+      if (isPinchingRef.current && e.touches.length === 2) {
+        const dist = getTouchDistance(e.touches[0], e.touches[1]);
+        const ratio = dist / pinchStartDistRef.current;
+        const newScale = clamp(pinchStartScaleRef.current * ratio, MIN_SCALE, MAX_SCALE);
+
+        // Translate to keep the pinch center stable
+        const center = getTouchCenter(e.touches[0], e.touches[1]);
+        const dx = center.x - pinchStartCenterRef.current.x;
+        const dy = center.y - pinchStartCenterRef.current.y;
+        const newTx = pinchStartTranslateRef.current.x + dx;
+        const newTy = pinchStartTranslateRef.current.y + dy;
+        const clamped = clampTranslate(newTx, newTy, newScale, containerRef.current);
+
+        setScale(newScale);
+        setTranslateX(clamped.x);
+        setTranslateY(clamped.y);
+        return;
+      }
+
+      // Pan move (zoomed, single finger)
+      if (isPanningRef.current && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - panStartRef.current.x;
+        const dy = touch.clientY - panStartRef.current.y;
+        const newTx = panStartTranslateRef.current.x + dx;
+        const newTy = panStartTranslateRef.current.y + dy;
+        const clamped = clampTranslate(newTx, newTy, scaleRef.current, containerRef.current);
+        setTranslateX(clamped.x);
+        setTranslateY(clamped.y);
+        return;
+      }
+
+      // Normal swipe move (not zoomed)
+      if (!touchStartRef.current || isZoomed) return;
       const touch = e.touches[0];
       const dx = touch.clientX - touchStartRef.current.x;
       const dy = touch.clientY - touchStartRef.current.y;
@@ -152,56 +320,79 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
       setOffsetX(dampened);
     },
-    [isAnimating, showMenu, isOriginalSize, currentIndex, photos.length]
+    [isAnimating, showMenu, isZoomed, currentIndex, photos.length]
   );
 
-  const handleTouchEnd = useCallback(() => {
-    if (!touchStartRef.current || !touchMovedRef.current) {
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      // Pinch end
+      if (isPinchingRef.current) {
+        // If remaining touches < 2, end pinch
+        if (e.touches.length < 2) {
+          isPinchingRef.current = false;
+          // Snap to 1 if close
+          if (scaleRef.current < 1.1) {
+            resetZoom();
+          }
+        }
+        return;
+      }
+
+      // Pan end
+      if (isPanningRef.current) {
+        isPanningRef.current = false;
+        return;
+      }
+
+      // Normal swipe end
+      if (!touchStartRef.current || !touchMovedRef.current) {
+        touchStartRef.current = null;
+        return;
+      }
+
+      const width = containerRef.current?.offsetWidth ?? window.innerWidth;
+      const elapsed = Date.now() - touchStartRef.current.time;
+      const velocity = Math.abs(offsetX) / elapsed;
+
+      const threshold = width * 0.3;
+      const shouldAdvance = Math.abs(offsetX) > threshold || velocity > 0.3;
+
+      setIsSwiping(false);
+      setIsAnimating(true);
+
+      if (shouldAdvance && offsetX < 0 && currentIndex < photos.length - 1) {
+        setOffsetX(-width);
+        setTimeout(() => {
+          skipTransitionRef.current = true;
+          setCurrentIndex((i) => i + 1);
+          setOffsetX(0);
+          setIsAnimating(false);
+          requestAnimationFrame(() => {
+            skipTransitionRef.current = false;
+          });
+        }, 250);
+      } else if (shouldAdvance && offsetX > 0 && currentIndex > 0) {
+        setOffsetX(width);
+        setTimeout(() => {
+          skipTransitionRef.current = true;
+          setCurrentIndex((i) => i - 1);
+          setOffsetX(0);
+          setIsAnimating(false);
+          requestAnimationFrame(() => {
+            skipTransitionRef.current = false;
+          });
+        }, 250);
+      } else {
+        setOffsetX(0);
+        setTimeout(() => {
+          setIsAnimating(false);
+        }, 250);
+      }
+
       touchStartRef.current = null;
-      return;
-    }
-
-    const width = containerRef.current?.offsetWidth ?? window.innerWidth;
-    const elapsed = Date.now() - touchStartRef.current.time;
-    const velocity = Math.abs(offsetX) / elapsed;
-
-    const threshold = width * 0.3;
-    const shouldAdvance = Math.abs(offsetX) > threshold || velocity > 0.3;
-
-    setIsSwiping(false);
-    setIsAnimating(true);
-
-    if (shouldAdvance && offsetX < 0 && currentIndex < photos.length - 1) {
-      setOffsetX(-width);
-      setTimeout(() => {
-        skipTransitionRef.current = true;
-        setCurrentIndex((i) => i + 1);
-        setOffsetX(0);
-        setIsAnimating(false);
-        requestAnimationFrame(() => {
-          skipTransitionRef.current = false;
-        });
-      }, 250);
-    } else if (shouldAdvance && offsetX > 0 && currentIndex > 0) {
-      setOffsetX(width);
-      setTimeout(() => {
-        skipTransitionRef.current = true;
-        setCurrentIndex((i) => i - 1);
-        setOffsetX(0);
-        setIsAnimating(false);
-        requestAnimationFrame(() => {
-          skipTransitionRef.current = false;
-        });
-      }, 250);
-    } else {
-      setOffsetX(0);
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 250);
-    }
-
-    touchStartRef.current = null;
-  }, [offsetX, currentIndex, photos.length]);
+    },
+    [offsetX, currentIndex, photos.length, resetZoom]
+  );
 
   // --- Actions ---
   const fetchBlob = async (): Promise<Blob> => {
@@ -297,9 +488,23 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
     }
   };
 
+  const handleZoomToggle = () => {
+    if (isZoomed) {
+      resetZoom();
+    } else {
+      setZoomTransition(true);
+      setScale(DOUBLE_TAP_SCALE);
+      setTranslateX(0);
+      setTranslateY(0);
+      setTimeout(() => setZoomTransition(false), 300);
+    }
+  };
+
   const prevUrl = currentIndex > 0 ? photos[currentIndex - 1].url : null;
   const nextUrl =
     currentIndex < photos.length - 1 ? photos[currentIndex + 1].url : null;
+
+  const zoomPercent = Math.round(scale * 100);
 
   return (
     <div className="viewer-overlay" onClick={onClose}>
@@ -328,7 +533,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
         {/* Swipe area */}
         <div
           ref={containerRef}
-          className={`viewer-swipe-container${isOriginalSize ? ' viewer-original-size' : ''}`}
+          className="viewer-swipe-container"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -336,29 +541,40 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
           <div
             className="viewer-swipe-track"
             style={{
-              transform: isOriginalSize ? 'none' : `translateX(${offsetX}px)`,
+              transform: isZoomed ? 'none' : `translateX(${offsetX}px)`,
               transition:
-                isOriginalSize || isSwiping || skipTransitionRef.current
+                isSwiping || skipTransitionRef.current
                   ? 'none'
                   : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
             }}
           >
-            {!isOriginalSize && (
+            {!isZoomed && (
               <div className="viewer-slide viewer-slide-prev">
                 {prevUrl && <img src={prevUrl} alt="" className="viewer-image" />}
               </div>
             )}
-            <div className={`viewer-slide viewer-slide-current${isOriginalSize ? ' viewer-slide-original' : ''}`}>
-              <img src={photo.url} alt={photo.name} className="viewer-image" />
+            <div className="viewer-slide viewer-slide-current">
+              <img
+                src={photo.url}
+                alt={photo.name}
+                className="viewer-image"
+                style={{
+                  transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
+                  transition: zoomTransition
+                    ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+                    : 'none',
+                  willChange: isZoomed ? 'transform' : 'auto',
+                }}
+              />
             </div>
-            {!isOriginalSize && (
+            {!isZoomed && (
               <div className="viewer-slide viewer-slide-next">
                 {nextUrl && <img src={nextUrl} alt="" className="viewer-image" />}
               </div>
             )}
           </div>
 
-          {currentIndex > 0 && (
+          {!isZoomed && currentIndex > 0 && (
             <button
               className="viewer-arrow viewer-arrow-left"
               onClick={goPrev}
@@ -367,7 +583,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
               ‹
             </button>
           )}
-          {currentIndex < photos.length - 1 && (
+          {!isZoomed && currentIndex < photos.length - 1 && (
             <button
               className="viewer-arrow viewer-arrow-right"
               onClick={goNext}
@@ -375,6 +591,10 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
             >
               ›
             </button>
+          )}
+
+          {isZoomed && (
+            <div className="viewer-zoom-badge">{zoomPercent}%</div>
           )}
         </div>
 
@@ -390,11 +610,11 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
             </button>
           )}
           <button
-            className={`viewer-action-btn${isOriginalSize ? ' viewer-action-btn-active' : ''}`}
-            onClick={() => setIsOriginalSize(!isOriginalSize)}
+            className={`viewer-action-btn${isZoomed ? ' viewer-action-btn-active' : ''}`}
+            onClick={handleZoomToggle}
           >
-            <span className="viewer-action-icon">{isOriginalSize ? '🔍' : '🔎'}</span>
-            {isOriginalSize ? 'フィット' : '原寸'}
+            <span className="viewer-action-icon">{isZoomed ? '🔍' : '🔎'}</span>
+            {isZoomed ? 'フィット' : '拡大'}
           </button>
         </div>
 
