@@ -45,6 +45,16 @@ const PhotoPicker: FC<PhotoPickerProps> = ({
     onConfirm(Array.from(selectedIds));
   };
 
+  const handleSelectAll = useCallback(() => {
+    const allIds = available.map((p) => p.id);
+    const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allIds));
+    }
+  }, [available, selectedIds]);
+
   const goTo = useCallback(
     (index: number) => {
       if (index >= 0 && index < available.length) {
@@ -142,6 +152,20 @@ const PhotoPicker: FC<PhotoPickerProps> = ({
               : ''}
           </span>
         </div>
+
+        {/* Select All bar */}
+        {available.length > 0 && (
+          <div className="picker-select-all-bar">
+            <button
+              className="picker-select-all-btn"
+              onClick={handleSelectAll}
+            >
+              {available.length > 0 && available.every((p) => selectedIds.has(p.id))
+                ? '全解除'
+                : `全選択（${available.length}枚）`}
+            </button>
+          </div>
+        )}
 
         {available.length === 0 ? (
           <div className="picker-empty-full">
