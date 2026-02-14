@@ -161,9 +161,18 @@ const CategoryBar: FC<CategoryBarProps> = ({
         )}
       </div>
 
-      {/* 共有管理ボタン（アルバム選択時に表示） */}
+      {/* アルバム操作バー（アルバム選択時に表示） */}
       {activeAlbumId && (
         <div className="share-action-bar">
+          <button
+            className="share-manage-btn"
+            onClick={() => {
+              const album = albums.find((a) => a.id === activeAlbumId);
+              if (album) openEdit(album);
+            }}
+          >
+            ✏️ 編集
+          </button>
           <button className="share-manage-btn" onClick={() => openShareDialog(activeAlbumId)}>
             👥 家族に共有
           </button>

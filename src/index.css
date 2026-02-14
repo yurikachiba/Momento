@@ -2112,6 +2112,93 @@ html.dark .recovery-banner-dismiss {
   cursor: not-allowed;
 }
 
+/* ===== Bulk Album Picker ===== */
+.bulk-album-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bulk-album-picker {
+  background: var(--bg-primary);
+  border-radius: 16px;
+  width: 320px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.bulk-album-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bulk-album-picker-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background 0.2s;
+}
+
+.bulk-album-picker-close:hover {
+  background: var(--border);
+}
+
+.bulk-album-picker-list {
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.bulk-album-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 15px;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.bulk-album-picker-item:hover {
+  background: var(--bg-secondary);
+}
+
+.bulk-album-picker-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.bulk-album-picker-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .photo-cell.select-mode {
   position: relative;
 }
