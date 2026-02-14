@@ -432,7 +432,7 @@ function App() {
                 onClick={() => setShowBulkAlbumPicker(true)}
                 disabled={selectedIds.size === 0}
               >
-                アルバムに追加
+                {activeAlbumId ? '他のアルバムに追加' : 'アルバムに追加'}
               </button>
             )}
             {activeAlbumId && (
@@ -531,7 +531,7 @@ function App() {
         <div className="bulk-album-picker-overlay" onClick={() => setShowBulkAlbumPicker(false)}>
           <div className="bulk-album-picker" onClick={(e) => e.stopPropagation()}>
             <div className="bulk-album-picker-header">
-              <span>アルバムに追加</span>
+              <span>{activeAlbumId ? '他のアルバムに追加' : 'アルバムに追加'}</span>
               <button
                 className="bulk-album-picker-close"
                 onClick={() => setShowBulkAlbumPicker(false)}
@@ -566,6 +566,7 @@ function App() {
           onUpdateMemo={handleUpdateMemo}
           readOnly={isReadOnly}
           sharedAlbumId={activeSharedAlbumId}
+          activeAlbumId={activeAlbumId}
         />
       )}
     </div>
