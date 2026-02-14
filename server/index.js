@@ -646,6 +646,7 @@ app.delete('/api/albums/:id', getSessionUser, (req, res) => {
   ).get(req.params.id, req.userId);
   if (!album) return res.status(404).json({ error: 'Album not found' });
 
+  db.prepare('DELETE FROM album_shares WHERE album_id = ?').run(req.params.id);
   db.prepare('DELETE FROM photo_albums WHERE album_id = ?').run(req.params.id);
   db.prepare('DELETE FROM albums WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
@@ -679,6 +680,165 @@ app.post('/api/albums/:albumId/bulk-remove', getSessionUser, (req, res) => {
     `DELETE FROM photo_albums WHERE album_id = ? AND photo_id IN (${ph})`
   ).run(req.params.albumId, ...photoIds);
   res.json({ ok: true });
+});
+
+// --- Album Sharing Routes ---
+
+// Share album with a user by username
+app.post('/api/albums/:id/share', getSessionUser, (req, res) => {
+  const db = getDb();
+  const { username } = req.body;
+  if (!username) {
+    return res.status(400).json({ error: 'ユーザー名を入力してください' });
+  }
+
+  const album = db.prepare('SELECT * FROM albums WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
+  if (!album) return res.status(404).json({ error: 'アルバムが見つかりません' });
+
+  const targetUser = db.prepare('SELECT id, username, display_name FROM users WHERE username = ?').get(username);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'ユーザーが見つかりません' });
+  }
+  if (targetUser.id === req.userId) {
+    return res.status(400).json({ error: '自分自身には共有できません' });
+  }
+
+  const existing = db.prepare(
+    'SELECT id FROM album_shares WHERE album_id = ? AND shared_with_user_id = ?'
+  ).get(req.params.id, targetUser.id);
+  if (existing) {
+    return res.status(409).json({ error: 'このユーザーには既に共有されています' });
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  db.prepare(
+    'INSERT INTO album_shares (id, album_id, owner_id, shared_with_user_id, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(id, req.params.id, req.userId, targetUser.id, now);
+
+  res.json({
+    id,
+    userId: targetUser.id,
+    username: targetUser.username,
+    displayName: targetUser.display_name,
+    createdAt: now,
+  });
+});
+
+// Revoke album share
+app.delete('/api/albums/:id/share/:userId', getSessionUser, (req, res) => {
+  const db = getDb();
+  const album = db.prepare('SELECT * FROM albums WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
+  if (!album) return res.status(404).json({ error: 'アルバムが見つかりません' });
+
+  db.prepare(
+    'DELETE FROM album_shares WHERE album_id = ? AND shared_with_user_id = ?'
+  ).run(req.params.id, req.params.userId);
+  res.json({ ok: true });
+});
+
+// List shares for an album (owner only)
+app.get('/api/albums/:id/shares', getSessionUser, (req, res) => {
+  const db = getDb();
+  const album = db.prepare('SELECT * FROM albums WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
+  if (!album) return res.status(404).json({ error: 'アルバムが見つかりません' });
+
+  const shares = db.prepare(`
+    SELECT s.id, s.shared_with_user_id as userId, u.username, u.display_name as displayName, s.created_at as createdAt
+    FROM album_shares s
+    JOIN users u ON s.shared_with_user_id = u.id
+    WHERE s.album_id = ?
+  `).all(req.params.id);
+
+  res.json(shares);
+});
+
+// List albums shared with current user
+app.get('/api/shared-albums', getSessionUser, (req, res) => {
+  const db = getDb();
+  const albums = db.prepare(`
+    SELECT a.id, a.name, a.icon, a.created_at as createdAt,
+           u.username as ownerUsername, u.display_name as ownerDisplayName
+    FROM album_shares s
+    JOIN albums a ON s.album_id = a.id
+    JOIN users u ON a.user_id = u.id
+    WHERE s.shared_with_user_id = ?
+    ORDER BY s.created_at DESC
+  `).all(req.userId);
+
+  res.json(albums.map(a => ({
+    id: a.id,
+    name: a.name,
+    icon: a.icon,
+    createdAt: a.createdAt,
+    ownerUsername: a.ownerUsername,
+    ownerDisplayName: a.ownerDisplayName,
+  })));
+});
+
+// Get photos in a shared album (read-only)
+app.get('/api/shared-albums/:id/photos', getSessionUser, (req, res) => {
+  const db = getDb();
+  const share = db.prepare(
+    'SELECT * FROM album_shares WHERE album_id = ? AND shared_with_user_id = ?'
+  ).get(req.params.id, req.userId);
+  if (!share) return res.status(403).json({ error: 'このアルバムへのアクセス権がありません' });
+
+  const photos = db.prepare(`
+    SELECT p.* FROM photos p
+    JOIN photo_albums pa ON p.id = pa.photo_id
+    WHERE pa.album_id = ?
+    ORDER BY p.created_at DESC
+  `).all(req.params.id);
+
+  const result = photos.map((p) => ({
+    id: p.id,
+    url: p.cloudinary_id ? signedUrl(p.cloudinary_id) : p.url,
+    thumbnailUrl: p.cloudinary_id ? signedThumbnailUrl(p.cloudinary_id) : p.thumbnail_url,
+    name: p.name,
+    memo: p.memo,
+    albumIds: [],
+    createdAt: p.created_at,
+    width: p.width,
+    height: p.height,
+    size: p.size,
+    quality: p.quality,
+  }));
+
+  res.json(result);
+});
+
+// Download proxy for shared album photos
+app.get('/api/shared-albums/:albumId/photos/:photoId/download', getSessionUser, async (req, res) => {
+  const db = getDb();
+  const share = db.prepare(
+    'SELECT * FROM album_shares WHERE album_id = ? AND shared_with_user_id = ?'
+  ).get(req.params.albumId, req.userId);
+  if (!share) return res.status(403).json({ error: 'このアルバムへのアクセス権がありません' });
+
+  const photo = db.prepare(`
+    SELECT p.* FROM photos p
+    JOIN photo_albums pa ON p.id = pa.photo_id
+    WHERE p.id = ? AND pa.album_id = ?
+  `).get(req.params.photoId, req.params.albumId);
+  if (!photo) return res.status(404).json({ error: '写真が見つかりません' });
+
+  try {
+    const downloadUrl = photo.cloudinary_id ? signedUrl(photo.cloudinary_id) : photo.url;
+    const upstream = await fetch(downloadUrl);
+    if (!upstream.ok) throw new Error(`Cloudinary responded ${upstream.status}`);
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+    const filename = `${photo.name || 'photo'}.${ext}`;
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Download proxy error:', err);
+    res.status(502).json({ error: 'Failed to download image' });
+  }
 });
 
 app.get('/api/usage', getSessionUser, (req, res) => {

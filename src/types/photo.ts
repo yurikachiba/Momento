@@ -18,3 +18,20 @@ export interface Album {
   icon: string;
   createdAt: number;
 }
+
+export interface SharedAlbum {
+  id: string;
+  name: string;
+  icon: string;
+  createdAt: number;
+  ownerUsername: string;
+  ownerDisplayName: string;
+}
+
+export interface AlbumShareEntry {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  createdAt: number;
+}

@@ -99,6 +99,18 @@ export function initDb() {
       FOREIGN KEY (album_id) REFERENCES albums(id)
     );
 
+    CREATE TABLE IF NOT EXISTS album_shares (
+      id TEXT PRIMARY KEY,
+      album_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      shared_with_user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (album_id) REFERENCES albums(id),
+      FOREIGN KEY (owner_id) REFERENCES users(id),
+      FOREIGN KEY (shared_with_user_id) REFERENCES users(id),
+      UNIQUE(album_id, shared_with_user_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id);
     CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id);
     CREATE INDEX IF NOT EXISTS idx_photo_albums_photo ON photo_albums(photo_id);
@@ -107,6 +119,8 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_webauthn_user ON webauthn_credentials(user_id);
     CREATE INDEX IF NOT EXISTS idx_webauthn_credential_id ON webauthn_credentials(credential_id);
+    CREATE INDEX IF NOT EXISTS idx_album_shares_album ON album_shares(album_id);
+    CREATE INDEX IF NOT EXISTS idx_album_shares_shared_with ON album_shares(shared_with_user_id);
   `);
 
   return db;
