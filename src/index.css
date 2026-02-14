@@ -2071,7 +2071,8 @@ html.dark .recovery-banner-dismiss {
 .select-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 12px 20px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
@@ -2108,6 +2109,7 @@ html.dark .recovery-banner-dismiss {
 
 .select-toolbar-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -2577,6 +2579,20 @@ html.dark .shared-tab.active .shared-badge {
   .viewer-menu-albums {
     gap: 6px;
   }
+  .select-toolbar {
+    gap: 6px 10px;
+    padding: 10px 14px;
+  }
+  .select-toolbar-count {
+    font-size: 14px;
+  }
+  .select-toolbar-actions {
+    width: 100%;
+  }
+  .select-toolbar-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 375px) {
@@ -2612,6 +2628,10 @@ html.dark .shared-tab.active .shared-badge {
     padding: 5px 10px;
     font-size: 13px;
     gap: 4px;
+  }
+  .select-toolbar-btn {
+    padding: 5px 10px;
+    font-size: 12px;
   }
 }
 
