@@ -22,6 +22,26 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Generate signed URL for authenticated Cloudinary images
+function signedUrl(publicId, options = {}) {
+  return cloudinary.url(publicId, {
+    sign_url: true,
+    type: 'authenticated',
+    secure: true,
+    ...options,
+  });
+}
+
+function signedThumbnailUrl(publicId) {
+  return signedUrl(publicId, {
+    width: 300,
+    height: 300,
+    crop: 'fill',
+    quality: 'auto',
+    fetch_format: 'auto',
+  });
+}
+
 const app = express();
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -435,6 +455,7 @@ app.post('/api/upload', getSessionUser, upload.single('photo'), async (req, res)
           folder: `momento/${req.userId}`,
           quality: q,
           resource_type: 'image',
+          type: 'authenticated',
         },
         (error, result) => {
           if (error) reject(error);
@@ -444,13 +465,8 @@ app.post('/api/upload', getSessionUser, upload.single('photo'), async (req, res)
       stream.end(req.file.buffer);
     });
 
-    const thumbnailUrl = cloudinary.url(result.public_id, {
-      width: 300,
-      height: 300,
-      crop: 'fill',
-      quality: 'auto',
-      fetch_format: 'auto',
-    });
+    const fullUrl = signedUrl(result.public_id);
+    const thumbnailUrl = signedThumbnailUrl(result.public_id);
 
     const db = getDb();
     const id = crypto.randomUUID();
@@ -459,7 +475,7 @@ app.post('/api/upload', getSessionUser, upload.single('photo'), async (req, res)
     db.prepare(`
       INSERT INTO photos (id, user_id, cloudinary_id, url, thumbnail_url, name, memo, width, height, size, quality, created_at)
       VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)
-    `).run(id, req.userId, result.public_id, result.secure_url, thumbnailUrl, name, result.width, result.height, result.bytes, quality, createdAt);
+    `).run(id, req.userId, result.public_id, fullUrl, thumbnailUrl, name, result.width, result.height, result.bytes, quality, createdAt);
 
     if (albumId) {
       const album = db.prepare('SELECT id FROM albums WHERE id = ? AND user_id = ?').get(albumId, req.userId);
@@ -470,7 +486,7 @@ app.post('/api/upload', getSessionUser, upload.single('photo'), async (req, res)
 
     res.json({
       id,
-      url: result.secure_url,
+      url: fullUrl,
       thumbnailUrl,
       name,
       memo: '',
@@ -511,8 +527,8 @@ app.get('/api/photos', getSessionUser, (req, res) => {
     ).all(p.id);
     return {
       id: p.id,
-      url: p.url,
-      thumbnailUrl: p.thumbnail_url,
+      url: p.cloudinary_id ? signedUrl(p.cloudinary_id) : p.url,
+      thumbnailUrl: p.cloudinary_id ? signedThumbnailUrl(p.cloudinary_id) : p.thumbnail_url,
       name: p.name,
       memo: p.memo,
       albumIds: albumRows.map((r) => r.album_id),
@@ -561,7 +577,7 @@ app.post('/api/photos/bulk-delete', getSessionUser, async (req, res) => {
   // Delete from Cloudinary (best effort)
   for (const photo of photos) {
     try {
-      await cloudinary.uploader.destroy(photo.cloudinary_id);
+      await cloudinary.uploader.destroy(photo.cloudinary_id, { type: 'authenticated' });
     } catch (err) {
       console.error('Cloudinary delete error:', err);
     }
@@ -585,7 +601,7 @@ app.delete('/api/photos/:id', getSessionUser, async (req, res) => {
   if (!photo) return res.status(404).json({ error: 'Photo not found' });
 
   try {
-    await cloudinary.uploader.destroy(photo.cloudinary_id);
+    await cloudinary.uploader.destroy(photo.cloudinary_id, { type: 'authenticated' });
   } catch (err) {
     console.error('Cloudinary delete error:', err);
   }
@@ -672,7 +688,8 @@ app.get('/api/photos/:id/download', getSessionUser, async (req, res) => {
   if (!photo) return res.status(404).json({ error: 'Photo not found' });
 
   try {
-    const upstream = await fetch(photo.url);
+    const downloadUrl = photo.cloudinary_id ? signedUrl(photo.cloudinary_id) : photo.url;
+    const upstream = await fetch(downloadUrl);
     if (!upstream.ok) throw new Error(`Cloudinary responded ${upstream.status}`);
     const buffer = Buffer.from(await upstream.arrayBuffer());
     const contentType = upstream.headers.get('content-type') || 'image/jpeg';
