@@ -54,6 +54,7 @@ function App() {
     limit: number;
   } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [showBulkAlbumPicker, setShowBulkAlbumPicker] = useState(false);
 
   const showToast = useCallback((message: string) => {
     setToast(null);
@@ -245,6 +246,28 @@ function App() {
     });
   }, [selectedIds, loadPhotos, loadUsage, showToast]);
 
+  const handleBulkAddToAlbum = useCallback(
+    async (albumId: string) => {
+      if (selectedIds.size === 0) return;
+      const count = selectedIds.size;
+      const idsToAdd = Array.from(selectedIds);
+      setShowBulkAlbumPicker(false);
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      const album = albums.find((a) => a.id === albumId);
+      const albumName = album ? album.name : 'アルバム';
+      showToast(`${count}枚の写真を「${albumName}」に追加しました`);
+      try {
+        await bulkAddToAlbum(albumId, idsToAdd);
+        await loadPhotos();
+      } catch {
+        showToast('アルバムへの追加に失敗しました');
+        loadPhotos();
+      }
+    },
+    [selectedIds, albums, loadPhotos, showToast]
+  );
+
   const handleBulkRemoveFromAlbum = useCallback(async () => {
     if (selectedIds.size === 0 || !activeAlbumId) return;
     const count = selectedIds.size;
@@ -403,6 +426,15 @@ function App() {
                 全解除
               </button>
             )}
+            {albums.length > 0 && (
+              <button
+                className="select-toolbar-btn"
+                onClick={() => setShowBulkAlbumPicker(true)}
+                disabled={selectedIds.size === 0}
+              >
+                アルバムに追加
+              </button>
+            )}
             {activeAlbumId && (
               <button
                 className="select-toolbar-btn"
@@ -494,6 +526,34 @@ function App() {
         visible={toast !== null}
         onHide={() => setToast(null)}
       />
+
+      {showBulkAlbumPicker && (
+        <div className="bulk-album-picker-overlay" onClick={() => setShowBulkAlbumPicker(false)}>
+          <div className="bulk-album-picker" onClick={(e) => e.stopPropagation()}>
+            <div className="bulk-album-picker-header">
+              <span>アルバムに追加</span>
+              <button
+                className="bulk-album-picker-close"
+                onClick={() => setShowBulkAlbumPicker(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="bulk-album-picker-list">
+              {albums.map((album) => (
+                <button
+                  key={album.id}
+                  className="bulk-album-picker-item"
+                  onClick={() => handleBulkAddToAlbum(album.id)}
+                >
+                  <span className="bulk-album-picker-icon">{album.icon || '📁'}</span>
+                  <span className="bulk-album-picker-name">{album.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedPhotoIndex !== null && photos.length > 0 && (
         <PhotoViewer
