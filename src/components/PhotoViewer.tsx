@@ -15,6 +15,8 @@ interface PhotoViewerProps {
   onDelete: (id: string) => void;
   onToggleAlbum: (photoId: string, albumId: string) => void;
   onUpdateMemo: (photoId: string, memo: string) => void;
+  readOnly?: boolean;
+  sharedAlbumId?: string | null;
 }
 
 const canShare =
@@ -31,6 +33,8 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   onDelete,
   onToggleAlbum,
   onUpdateMemo,
+  readOnly = false,
+  sharedAlbumId = null,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showMenu, setShowMenu] = useState(false);
@@ -210,7 +214,10 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
 
     // 2. Fallback: fetch via server download proxy (reliable in PWA)
     const token = localStorage.getItem('momento-token');
-    const res = await fetch(`/api/photos/${photo.id}/download`, {
+    const downloadUrl = readOnly && sharedAlbumId
+      ? `/api/shared-albums/${sharedAlbumId}/photos/${photo.id}/download`
+      : `/api/photos/${photo.id}/download`;
+    const res = await fetch(downloadUrl, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error('download failed');
@@ -281,7 +288,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   };
 
   const handleMemoBlur = () => {
-    if (memo !== (photo.memo || '')) {
+    if (!readOnly && memo !== (photo.memo || '')) {
       onUpdateMemo(photo.id, memo);
     }
   };
@@ -302,13 +309,15 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
             <span className="viewer-counter">
               {currentIndex + 1} / {photos.length}
             </span>
-            <button
-              className="btn-icon"
-              onClick={() => setShowMenu(!showMenu)}
-              aria-label="メニュー"
-            >
-              ⋯
-            </button>
+            {!readOnly && (
+              <button
+                className="btn-icon"
+                onClick={() => setShowMenu(!showMenu)}
+                aria-label="メニュー"
+              >
+                ⋯
+              </button>
+            )}
           </div>
         </div>
 
@@ -374,7 +383,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
           )}
         </div>
 
-        {showMenu && (
+        {showMenu && !readOnly && (
           <div className="viewer-menu">
             <div className="viewer-menu-section">
               <p className="viewer-menu-label">メモ</p>

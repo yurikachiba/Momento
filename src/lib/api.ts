@@ -1,4 +1,4 @@
-import type { Photo, Album } from '../types/photo';
+import type { Photo, Album, SharedAlbum, AlbumShareEntry } from '../types/photo';
 
 const API_BASE = '/api';
 
@@ -204,4 +204,61 @@ export async function getUsage(): Promise<{
   const res = await fetch(`${API_BASE}/usage`, { headers: authHeaders() });
   if (!res.ok) throw new Error('Failed to fetch usage');
   return safeJson<{ count: number; totalSize: number; limit: number }>(res);
+}
+
+// --- Album Sharing ---
+
+export async function shareAlbum(
+  albumId: string,
+  username: string
+): Promise<AlbumShareEntry> {
+  const res = await fetch(`${API_BASE}/albums/${albumId}/share`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username }),
+  });
+  if (!res.ok) {
+    const data = await safeJson<{ error?: string }>(res).catch(() => null);
+    throw new Error(data?.error || '共有に失敗しました');
+  }
+  return safeJson<AlbumShareEntry>(res);
+}
+
+export async function revokeAlbumShare(
+  albumId: string,
+  userId: string
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/albums/${albumId}/share/${userId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('共有の解除に失敗しました');
+}
+
+export async function getAlbumShares(
+  albumId: string
+): Promise<AlbumShareEntry[]> {
+  const res = await fetch(`${API_BASE}/albums/${albumId}/shares`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('共有情報の取得に失敗しました');
+  return safeJson<AlbumShareEntry[]>(res);
+}
+
+export async function getSharedAlbums(): Promise<SharedAlbum[]> {
+  const res = await fetch(`${API_BASE}/shared-albums`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('共有アルバムの取得に失敗しました');
+  return safeJson<SharedAlbum[]>(res);
+}
+
+export async function getSharedAlbumPhotos(
+  albumId: string
+): Promise<Photo[]> {
+  const res = await fetch(`${API_BASE}/shared-albums/${albumId}/photos`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('共有アルバムの写真の取得に失敗しました');
+  return safeJson<Photo[]>(res);
 }

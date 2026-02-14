@@ -23,9 +23,11 @@ import {
   updateAlbum,
   getUsage,
   updatePhotoMeta,
+  getSharedAlbums,
+  getSharedAlbumPhotos,
 } from './lib/api';
 import { sanitizeFileName } from './lib/sanitize';
-import type { Photo, Album } from './types/photo';
+import type { Photo, Album, SharedAlbum } from './types/photo';
 
 function App() {
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -59,6 +61,13 @@ function App() {
     requestAnimationFrame(() => setToast(message));
   }, []);
 
+  // 共有アルバム関連
+  const [sharedAlbums, setSharedAlbums] = useState<SharedAlbum[]>([]);
+  const [activeSharedAlbumId, setActiveSharedAlbumId] = useState<string | null>(null);
+
+  // 読み取り専用モード（共有アルバム閲覧時）
+  const isReadOnly = activeSharedAlbumId !== null;
+
   // Apply dark mode
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -73,13 +82,25 @@ function App() {
     }
   }, []);
 
-  const loadPhotos = useCallback(async () => {
+  const loadSharedAlbums = useCallback(async () => {
     try {
-      setPhotos(await getPhotos(activeAlbumId));
+      setSharedAlbums(await getSharedAlbums());
     } catch {
       /* ignore */
     }
-  }, [activeAlbumId]);
+  }, []);
+
+  const loadPhotos = useCallback(async () => {
+    try {
+      if (activeSharedAlbumId) {
+        setPhotos(await getSharedAlbumPhotos(activeSharedAlbumId));
+      } else {
+        setPhotos(await getPhotos(activeAlbumId));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [activeAlbumId, activeSharedAlbumId]);
 
   const loadUsage = useCallback(async () => {
     try {
@@ -91,8 +112,9 @@ function App() {
 
   useEffect(() => {
     loadAlbums();
+    loadSharedAlbums();
     loadUsage();
-  }, [loadAlbums, loadUsage]);
+  }, [loadAlbums, loadSharedAlbums, loadUsage]);
 
   useEffect(() => {
     loadPhotos();
@@ -100,8 +122,22 @@ function App() {
 
   // --- Handlers ---
 
-  const handleSelectAll = useCallback(() => setActiveAlbumId(null), []);
-  const handleSelectAlbum = useCallback((id: string) => setActiveAlbumId(id), []);
+  const handleSelectAll = useCallback(() => {
+    setActiveAlbumId(null);
+    setActiveSharedAlbumId(null);
+  }, []);
+
+  const handleSelectAlbum = useCallback((id: string) => {
+    setActiveAlbumId(id);
+    setActiveSharedAlbumId(null);
+  }, []);
+
+  const handleSelectSharedAlbum = useCallback((id: string) => {
+    setActiveSharedAlbumId(id);
+    setActiveAlbumId(null);
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
 
   const handleAddFiles = useCallback(
     async (files: File[], quality: string) => {
@@ -298,6 +334,9 @@ function App() {
     [activeAlbumId, loadAlbums, loadPhotos, showToast]
   );
 
+  // 現在閲覧中の共有アルバム情報
+  const currentSharedAlbum = sharedAlbums.find((a) => a.id === activeSharedAlbumId);
+
   return (
     <div className="app">
       <Header
@@ -322,7 +361,7 @@ function App() {
         }
       />
 
-      {usage && <UsageBar usage={usage} />}
+      {usage && !isReadOnly && <UsageBar usage={usage} />}
 
       <CategoryBar
         albums={albums}
@@ -332,9 +371,23 @@ function App() {
         onAddAlbum={handleAddAlbum}
         onRenameAlbum={handleRenameAlbum}
         onDeleteAlbum={handleDeleteAlbum}
+        sharedAlbums={sharedAlbums}
+        activeSharedAlbumId={activeSharedAlbumId}
+        onSelectSharedAlbum={handleSelectSharedAlbum}
       />
 
-      {selectMode && (
+      {/* 共有アルバム閲覧時のバナー */}
+      {isReadOnly && currentSharedAlbum && (
+        <div className="shared-banner">
+          <span className="shared-banner-icon">👥</span>
+          <span className="shared-banner-text">
+            {currentSharedAlbum.ownerDisplayName}さんの共有アルバム
+          </span>
+          <span className="shared-banner-hint">閲覧のみ</span>
+        </div>
+      )}
+
+      {selectMode && !isReadOnly && (
         <div className="select-toolbar">
           <button className="select-toolbar-close" onClick={handleExitSelectMode}>
             ✕
@@ -371,12 +424,12 @@ function App() {
       )}
 
       <main className="main-content">
-        {activeAlbumId && !selectMode && (
+        {activeAlbumId && !selectMode && !isReadOnly && (
           <button className="add-to-album-btn" onClick={handleOpenPicker}>
             + 既存の写真を追加
           </button>
         )}
-        {!selectMode && photos.length > 0 && (
+        {!selectMode && !isReadOnly && photos.length > 0 && (
           <button
             className="select-mode-btn"
             onClick={() => setSelectMode(true)}
@@ -387,13 +440,13 @@ function App() {
         <PhotoGrid
           photos={photos}
           onSelect={handleSelectPhoto}
-          selectMode={selectMode}
+          selectMode={selectMode && !isReadOnly}
           selectedIds={selectedIds}
-          onToggleSelect={handleToggleSelect}
+          onToggleSelect={isReadOnly ? () => {} : handleToggleSelect}
         />
       </main>
 
-      {!selectMode && <AddPhotoButton onFiles={handleAddFiles} />}
+      {!selectMode && !isReadOnly && <AddPhotoButton onFiles={handleAddFiles} />}
 
       {showSettings && (
         <SettingsMenu onClose={() => setShowSettings(false)} usage={usage} />
@@ -451,6 +504,8 @@ function App() {
           onDelete={handleDelete}
           onToggleAlbum={handleToggleAlbum}
           onUpdateMemo={handleUpdateMemo}
+          readOnly={isReadOnly}
+          sharedAlbumId={activeSharedAlbumId}
         />
       )}
     </div>
