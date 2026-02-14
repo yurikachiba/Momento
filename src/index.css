@@ -1223,6 +1223,33 @@ html.dark .recovery-banner-dismiss {
   flex-shrink: 0;
 }
 
+.picker-select-all-bar {
+  display: flex;
+  justify-content: center;
+  padding: 0 16px 8px;
+  flex-shrink: 0;
+}
+
+.picker-select-all-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 6px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.picker-select-all-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.picker-select-all-btn:active {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 .picker-close-btn {
   width: 40px;
   height: 40px;
