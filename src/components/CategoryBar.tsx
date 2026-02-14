@@ -8,6 +8,7 @@ interface CategoryBarProps {
   onSelectAll: () => void;
   onSelectAlbum: (id: string) => void;
   onAddAlbum: (name: string, icon: string) => void;
+  onRenameAlbum: (id: string, name: string, icon: string) => void;
   onDeleteAlbum: (id: string) => void;
 }
 
@@ -19,11 +20,17 @@ const CategoryBar: FC<CategoryBarProps> = ({
   onSelectAll,
   onSelectAlbum,
   onAddAlbum,
+  onRenameAlbum,
   onDeleteAlbum,
 }) => {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(ICON_OPTIONS[0]);
+
+  // 編集用state
+  const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editIcon, setEditIcon] = useState('');
 
   const handleAdd = () => {
     const trimmed = stripHtmlTags(newName).trim();
@@ -32,6 +39,28 @@ const CategoryBar: FC<CategoryBarProps> = ({
     setNewName('');
     setSelectedIcon(ICON_OPTIONS[0]);
     setAdding(false);
+  };
+
+  const openEdit = (album: Album) => {
+    setEditingAlbum(album);
+    setEditName(album.name);
+    setEditIcon(album.icon || ICON_OPTIONS[0]);
+  };
+
+  const handleEdit = () => {
+    if (!editingAlbum) return;
+    const trimmed = stripHtmlTags(editName).trim();
+    if (!trimmed) return;
+    onRenameAlbum(editingAlbum.id, trimmed, editIcon);
+    setEditingAlbum(null);
+  };
+
+  const handleDeleteFromEdit = () => {
+    if (!editingAlbum) return;
+    if (confirm(`「${editingAlbum.name}」アルバムを削除しますか？\n写真自体は削除されません。`)) {
+      onDeleteAlbum(editingAlbum.id);
+      setEditingAlbum(null);
+    }
   };
 
   return (
@@ -50,9 +79,7 @@ const CategoryBar: FC<CategoryBarProps> = ({
             onClick={() => onSelectAlbum(album.id)}
             onContextMenu={(e) => {
               e.preventDefault();
-              if (confirm(`「${album.name}」アルバムを削除しますか？\n写真自体は削除されません。`)) {
-                onDeleteAlbum(album.id);
-              }
+              openEdit(album);
             }}
           >
             {album.icon} {album.name}
@@ -94,6 +121,47 @@ const CategoryBar: FC<CategoryBarProps> = ({
               </button>
               <button className="btn-primary" onClick={handleAdd} disabled={!newName.trim()}>
                 作成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingAlbum && (
+        <div className="category-add-overlay" onClick={() => setEditingAlbum(null)}>
+          <div className="category-add-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>アルバムを編集</h3>
+            <div className="icon-picker">
+              {ICON_OPTIONS.map((icon) => (
+                <button
+                  key={icon}
+                  className={`icon-option ${editIcon === icon ? 'selected' : ''}`}
+                  onClick={() => setEditIcon(icon)}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              className="input-name"
+              placeholder="アルバム名"
+              value={editName}
+              maxLength={50}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleEdit()}
+              autoFocus
+            />
+            <div className="dialog-actions">
+              <button className="btn-danger" onClick={handleDeleteFromEdit}>
+                削除
+              </button>
+              <div style={{ flex: 1 }} />
+              <button className="btn-secondary" onClick={() => setEditingAlbum(null)}>
+                キャンセル
+              </button>
+              <button className="btn-primary" onClick={handleEdit} disabled={!editName.trim()}>
+                保存
               </button>
             </div>
           </div>
