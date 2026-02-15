@@ -347,6 +347,7 @@ body {
 }
 
 .photo-cell {
+  position: relative;
   aspect-ratio: 1;
   overflow: hidden;
   border: none;
@@ -379,6 +380,56 @@ body {
   opacity: 0.3;
   transform: scale(0.95);
   transition: opacity 0.15s, transform 0.15s;
+}
+
+/* ===== Drag Handle ===== */
+.drag-handle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 4px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 2;
+  touch-action: none;
+}
+
+.photo-cell:hover .drag-handle,
+.photo-cell:active .drag-handle {
+  opacity: 1;
+}
+
+/* タッチデバイスでは常時表示 */
+@media (hover: none) {
+  .drag-handle {
+    opacity: 0.7;
+  }
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.drag-handle-dots {
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  grid-template-rows: repeat(2, 4px);
+  gap: 2px;
+}
+
+.drag-handle-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .drag-ghost {
