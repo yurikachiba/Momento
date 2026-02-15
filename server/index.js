@@ -472,15 +472,20 @@ app.post('/api/upload', getSessionUser, upload.single('photo'), async (req, res)
     const id = crypto.randomUUID();
     const createdAt = Date.now();
 
+    // 新しい写真は先頭（position=0）に追加し、既存写真のpositionを+1する
+    db.prepare('UPDATE photos SET position = position + 1 WHERE user_id = ?').run(req.userId);
+
     db.prepare(`
-      INSERT INTO photos (id, user_id, cloudinary_id, url, thumbnail_url, name, memo, width, height, size, quality, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)
+      INSERT INTO photos (id, user_id, cloudinary_id, url, thumbnail_url, name, memo, width, height, size, quality, created_at, position)
+      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, 0)
     `).run(id, req.userId, result.public_id, fullUrl, thumbnailUrl, name, result.width, result.height, result.bytes, quality, createdAt);
 
     if (albumId) {
       const album = db.prepare('SELECT id FROM albums WHERE id = ? AND user_id = ?').get(albumId, req.userId);
       if (album) {
-        db.prepare('INSERT OR IGNORE INTO photo_albums (photo_id, album_id) VALUES (?, ?)').run(id, albumId);
+        // アルバム内でも先頭に追加
+        db.prepare('UPDATE photo_albums SET position = position + 1 WHERE album_id = ?').run(albumId);
+        db.prepare('INSERT OR IGNORE INTO photo_albums (photo_id, album_id, position) VALUES (?, ?, 0)').run(id, albumId);
       }
     }
 
@@ -513,11 +518,11 @@ app.get('/api/photos', getSessionUser, (req, res) => {
       SELECT p.* FROM photos p
       JOIN photo_albums pa ON p.id = pa.photo_id
       WHERE p.user_id = ? AND pa.album_id = ?
-      ORDER BY p.created_at DESC
+      ORDER BY pa.position ASC, p.created_at DESC
     `).all(req.userId, albumId);
   } else {
     photos = db.prepare(
-      'SELECT * FROM photos WHERE user_id = ? ORDER BY created_at DESC'
+      'SELECT * FROM photos WHERE user_id = ? ORDER BY position ASC, created_at DESC'
     ).all(req.userId);
   }
 
@@ -671,9 +676,13 @@ app.delete('/api/albums/:id', getSessionUser, (req, res) => {
 
 app.post('/api/photos/:photoId/albums/:albumId', getSessionUser, (req, res) => {
   const db = getDb();
+  // アルバム末尾に追加
+  const maxPos = db.prepare(
+    'SELECT COALESCE(MAX(position), -1) as maxPos FROM photo_albums WHERE album_id = ?'
+  ).get(req.params.albumId);
   db.prepare(
-    'INSERT OR IGNORE INTO photo_albums (photo_id, album_id) VALUES (?, ?)'
-  ).run(req.params.photoId, req.params.albumId);
+    'INSERT OR IGNORE INTO photo_albums (photo_id, album_id, position) VALUES (?, ?, ?)'
+  ).run(req.params.photoId, req.params.albumId, (maxPos?.maxPos ?? -1) + 1);
   res.json({ ok: true });
 });
 
@@ -695,10 +704,12 @@ app.post('/api/albums/:albumId/bulk-add', getSessionUser, (req, res) => {
   const album = db.prepare('SELECT id FROM albums WHERE id = ? AND user_id = ?').get(req.params.albumId, req.userId);
   if (!album) return res.status(404).json({ error: 'アルバムが見つかりません' });
 
-  const insert = db.prepare('INSERT OR IGNORE INTO photo_albums (photo_id, album_id) VALUES (?, ?)');
+  const getMaxPos = db.prepare('SELECT COALESCE(MAX(position), -1) as maxPos FROM photo_albums WHERE album_id = ?');
+  const insert = db.prepare('INSERT OR IGNORE INTO photo_albums (photo_id, album_id, position) VALUES (?, ?, ?)');
   const bulkInsert = db.transaction((ids) => {
+    let pos = (getMaxPos.get(req.params.albumId)?.maxPos ?? -1) + 1;
     for (const id of ids) {
-      insert.run(id, req.params.albumId);
+      insert.run(id, req.params.albumId, pos++);
     }
   });
   bulkInsert(photoIds);
@@ -716,6 +727,42 @@ app.post('/api/albums/:albumId/bulk-remove', getSessionUser, (req, res) => {
   db.prepare(
     `DELETE FROM photo_albums WHERE album_id = ? AND photo_id IN (${ph})`
   ).run(req.params.albumId, ...photoIds);
+  res.json({ ok: true });
+});
+
+// --- Photo Reorder ---
+
+app.post('/api/photos/reorder', getSessionUser, (req, res) => {
+  const { photoIds, albumId } = req.body;
+  if (!Array.isArray(photoIds) || photoIds.length === 0) {
+    return res.status(400).json({ error: '写真IDが必要です' });
+  }
+
+  const db = getDb();
+
+  if (albumId) {
+    // アルバム内の並び替え
+    const album = db.prepare('SELECT id FROM albums WHERE id = ? AND user_id = ?').get(albumId, req.userId);
+    if (!album) return res.status(404).json({ error: 'アルバムが見つかりません' });
+
+    const update = db.prepare('UPDATE photo_albums SET position = ? WHERE photo_id = ? AND album_id = ?');
+    const reorder = db.transaction((ids) => {
+      for (let i = 0; i < ids.length; i++) {
+        update.run(i, ids[i], albumId);
+      }
+    });
+    reorder(photoIds);
+  } else {
+    // 全体の並び替え
+    const update = db.prepare('UPDATE photos SET position = ? WHERE id = ? AND user_id = ?');
+    const reorder = db.transaction((ids) => {
+      for (let i = 0; i < ids.length; i++) {
+        update.run(i, ids[i], req.userId);
+      }
+    });
+    reorder(photoIds);
+  }
+
   res.json({ ok: true });
 });
 
