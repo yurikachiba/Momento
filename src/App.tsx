@@ -25,6 +25,7 @@ import {
   updatePhotoMeta,
   getSharedAlbums,
   getSharedAlbumPhotos,
+  reorderPhotos,
 } from './lib/api';
 import { sanitizeFileName } from './lib/sanitize';
 import type { Photo, Album, SharedAlbum } from './types/photo';
@@ -307,6 +308,20 @@ function App() {
     [loadPhotos]
   );
 
+  const handleReorder = useCallback(
+    async (reorderedPhotos: Photo[]) => {
+      // 楽観的にUIを即座に更新
+      setPhotos(reorderedPhotos);
+      // サーバーに並び順を保存
+      const photoIds = reorderedPhotos.map((p) => p.id);
+      reorderPhotos(photoIds, activeAlbumId).catch(() => {
+        // 失敗時はリロードして整合性を回復
+        loadPhotos();
+      });
+    },
+    [activeAlbumId, loadPhotos]
+  );
+
   const handleOpenPicker = useCallback(async () => {
     try {
       setAllPhotos(await getPhotos(null));
@@ -475,6 +490,8 @@ function App() {
           selectMode={selectMode && !isReadOnly}
           selectedIds={selectedIds}
           onToggleSelect={isReadOnly ? () => {} : handleToggleSelect}
+          onReorder={handleReorder}
+          readOnly={isReadOnly}
         />
       </main>
 

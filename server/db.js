@@ -79,6 +79,7 @@ export function initDb() {
       size INTEGER NOT NULL DEFAULT 0,
       quality TEXT NOT NULL DEFAULT 'auto',
       created_at INTEGER NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
@@ -94,6 +95,7 @@ export function initDb() {
     CREATE TABLE IF NOT EXISTS photo_albums (
       photo_id TEXT NOT NULL,
       album_id TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (photo_id, album_id),
       FOREIGN KEY (photo_id) REFERENCES photos(id),
       FOREIGN KEY (album_id) REFERENCES albums(id)
@@ -111,6 +113,9 @@ export function initDb() {
       UNIQUE(album_id, shared_with_user_id)
     );
 
+    -- Migration: add position column to photos if missing
+    -- (handled below after table creation)
+
     CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id);
     CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id);
     CREATE INDEX IF NOT EXISTS idx_photo_albums_photo ON photo_albums(photo_id);
@@ -122,6 +127,19 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_album_shares_album ON album_shares(album_id);
     CREATE INDEX IF NOT EXISTS idx_album_shares_shared_with ON album_shares(shared_with_user_id);
   `);
+
+  // Migration: add position columns if missing (for existing databases)
+  const photosInfo = db.pragma('table_info(photos)');
+  const photoCols = photosInfo.map(c => c.name);
+  if (!photoCols.includes('position')) {
+    db.exec('ALTER TABLE photos ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  }
+
+  const paInfo = db.pragma('table_info(photo_albums)');
+  const paCols = paInfo.map(c => c.name);
+  if (!paCols.includes('position')) {
+    db.exec('ALTER TABLE photo_albums ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  }
 
   return db;
 }

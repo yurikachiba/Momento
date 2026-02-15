@@ -206,6 +206,20 @@ export async function getUsage(): Promise<{
   return safeJson<{ count: number; totalSize: number; limit: number }>(res);
 }
 
+// --- Photo Reorder ---
+
+export async function reorderPhotos(
+  photoIds: string[],
+  albumId?: string | null
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/photos/reorder`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoIds, albumId: albumId || undefined }),
+  });
+  if (!res.ok) throw new Error('Failed to reorder photos');
+}
+
 // --- Album Sharing ---
 
 export async function shareAlbum(
