@@ -11,9 +11,6 @@ interface PhotoGridProps {
   readOnly?: boolean;
 }
 
-const LONG_PRESS_MS = 400;
-const DRAG_THRESHOLD = 8;
-
 const PhotoGrid: FC<PhotoGridProps> = ({
   photos,
   onSelect,
@@ -27,22 +24,13 @@ const PhotoGrid: FC<PhotoGridProps> = ({
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const cellRectsRef = useRef<DOMRect[]>([]);
-  const dragStarted = useRef(false);
   const dragIndexRef = useRef<number | null>(null);
   const overIndexRef = useRef<number | null>(null);
+  const pointerTypeRef = useRef<'mouse' | 'touch' | null>(null);
 
   const canDrag = !selectMode && !readOnly && !!onReorder && photos.length > 1;
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }, []);
 
   const getPreviewPhotos = useCallback((): Photo[] => {
     if (dragIndex === null || overIndex === null) return photos;
@@ -72,7 +60,6 @@ const PhotoGrid: FC<PhotoGridProps> = ({
         return i;
       }
     }
-    // 最も近いセルを探す
     let minDist = Infinity;
     let closest = null;
     for (let i = 0; i < cellRectsRef.current.length; i++) {
@@ -145,87 +132,113 @@ const PhotoGrid: FC<PhotoGridProps> = ({
     }
     dragIndexRef.current = null;
     overIndexRef.current = null;
+    pointerTypeRef.current = null;
     setDragIndex(null);
     setOverIndex(null);
     setIsDragging(false);
-    dragStarted.current = false;
     removeGhost();
-    clearLongPress();
-  }, [photos, onReorder, removeGhost, clearLongPress]);
+  }, [photos, onReorder, removeGhost]);
 
-  // タッチイベントハンドラ
-  const handleTouchStart = useCallback(
+  const startDrag = useCallback(
+    (index: number, x: number, y: number) => {
+      dragIndexRef.current = index;
+      overIndexRef.current = index;
+      setDragIndex(index);
+      setOverIndex(index);
+      setIsDragging(true);
+      updateCellRects();
+      createGhost(index, x, y);
+      if (navigator.vibrate) {
+        navigator.vibrate(30);
+      }
+    },
+    [updateCellRects, createGhost]
+  );
+
+  // マウスドラッグ（ハンドルから開始）
+  const handleGripMouseDown = useCallback(
+    (e: React.MouseEvent, index: number) => {
+      if (!canDrag) return;
+      e.preventDefault();
+      e.stopPropagation();
+      pointerTypeRef.current = 'mouse';
+      startDrag(index, e.clientX, e.clientY);
+    },
+    [canDrag, startDrag]
+  );
+
+  // タッチドラッグ（ハンドルから開始）
+  const handleGripTouchStart = useCallback(
     (e: React.TouchEvent, index: number) => {
       if (!canDrag) return;
-      const touch = e.touches[0];
-      touchStartPos.current = { x: touch.clientX, y: touch.clientY };
-      dragStarted.current = false;
-
-      longPressTimer.current = setTimeout(() => {
-        dragStarted.current = true;
-        dragIndexRef.current = index;
-        overIndexRef.current = index;
-        setDragIndex(index);
-        setOverIndex(index);
-        setIsDragging(true);
-        updateCellRects();
-        createGhost(index, touch.clientX, touch.clientY);
-
-        // 触覚フィードバック
-        if (navigator.vibrate) {
-          navigator.vibrate(30);
-        }
-      }, LONG_PRESS_MS);
-    },
-    [canDrag, updateCellRects, createGhost]
-  );
-
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      const touch = e.touches[0];
-
-      // 長押し判定前に指が動いたらキャンセル
-      if (!dragStarted.current && touchStartPos.current) {
-        const dx = touch.clientX - touchStartPos.current.x;
-        const dy = touch.clientY - touchStartPos.current.y;
-        if (Math.hypot(dx, dy) > DRAG_THRESHOLD) {
-          clearLongPress();
-          return;
-        }
-        // 閾値内の小さな動きはブラウザのスクロール開始を防止する
-        e.preventDefault();
-        return;
-      }
-
-      if (!dragStarted.current || dragIndexRef.current === null) return;
-
       e.preventDefault();
-      moveGhost(touch.clientX, touch.clientY);
-
-      const newOverIndex = findDropIndex(touch.clientX, touch.clientY);
-      if (newOverIndex !== null && newOverIndex !== overIndexRef.current) {
-        overIndexRef.current = newOverIndex;
-        setOverIndex(newOverIndex);
-      }
+      e.stopPropagation();
+      const touch = e.touches[0];
+      pointerTypeRef.current = 'touch';
+      startDrag(index, touch.clientX, touch.clientY);
     },
-    [clearLongPress, moveGhost, findDropIndex]
+    [canDrag, startDrag]
   );
 
-  const handleTouchEnd = useCallback(() => {
-    clearLongPress();
-    if (dragStarted.current) {
+  // マウスドラッグ中・終了のグローバルイベント
+  useEffect(() => {
+    if (!isDragging || pointerTypeRef.current !== 'mouse') return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      moveGhost(e.clientX, e.clientY);
+      const idx = findDropIndex(e.clientX, e.clientY);
+      if (idx !== null && idx !== overIndexRef.current) {
+        overIndexRef.current = idx;
+        setOverIndex(idx);
+      }
+    };
+
+    const handleMouseUp = () => {
       endDrag();
-    }
-    touchStartPos.current = null;
-  }, [clearLongPress, endDrag]);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, moveGhost, findDropIndex, endDrag]);
+
+  // タッチドラッグ中・終了のグローバルイベント
+  useEffect(() => {
+    if (!isDragging || pointerTypeRef.current !== 'touch') return;
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      moveGhost(touch.clientX, touch.clientY);
+      const idx = findDropIndex(touch.clientX, touch.clientY);
+      if (idx !== null && idx !== overIndexRef.current) {
+        overIndexRef.current = idx;
+        setOverIndex(idx);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      endDrag();
+    };
+
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging, moveGhost, findDropIndex, endDrag]);
 
   // クリーンアップ
   useEffect(() => {
     return () => {
-      clearLongPress();
       removeGhost();
     };
-  }, [clearLongPress, removeGhost]);
+  }, [removeGhost]);
 
   if (photos.length === 0) {
     return (
@@ -237,7 +250,6 @@ const PhotoGrid: FC<PhotoGridProps> = ({
     );
   }
 
-  // ドラッグ中のプレビュー順序
   const displayPhotos = isDragging ? getPreviewPhotos() : photos;
 
   return (
@@ -268,12 +280,21 @@ const PhotoGrid: FC<PhotoGridProps> = ({
                 onToggleSelect(photo.id);
               }
             }}
-            onTouchStart={(e) => handleTouchStart(e, originalIndex)}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
             aria-label={photo.name}
           >
             <img src={photo.thumbnailUrl} alt={photo.name} loading="lazy" draggable={false} />
+            {canDrag && (
+              <span
+                className="drag-handle"
+                onMouseDown={(e) => handleGripMouseDown(e, originalIndex)}
+                onTouchStart={(e) => handleGripTouchStart(e, originalIndex)}
+              >
+                <span className="drag-handle-dots">
+                  <span /><span /><span />
+                  <span /><span /><span />
+                </span>
+              </span>
+            )}
             {selectMode && (
               <span className={`select-check${isSelected ? ' active' : ''}`}>
                 {isSelected ? '✓' : ''}
