@@ -65,6 +65,7 @@ body {
   max-width: 600px;
   margin: 0 auto;
   position: relative;
+  transition: max-width 0.2s ease;
 }
 
 /* ===== Header ===== */
@@ -2576,6 +2577,46 @@ html.dark .shared-tab.active .shared-badge {
 @media (min-width: 480px) {
   .photo-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Tablet */
+@media (min-width: 768px) {
+  .app {
+    max-width: 900px;
+  }
+  .photo-grid {
+    gap: 6px;
+  }
+  .viewer-content {
+    max-width: 900px;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .app {
+    max-width: 1200px;
+  }
+  .photo-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .viewer-content {
+    max-width: 1100px;
+  }
+}
+
+/* Large Desktop */
+@media (min-width: 1440px) {
+  .app {
+    max-width: 1400px;
+  }
+  .photo-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .viewer-content {
+    max-width: 1300px;
   }
 }
 
