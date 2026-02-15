@@ -32,6 +32,8 @@ const PhotoGrid: FC<PhotoGridProps> = ({
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const cellRectsRef = useRef<DOMRect[]>([]);
   const dragStarted = useRef(false);
+  const dragIndexRef = useRef<number | null>(null);
+  const overIndexRef = useRef<number | null>(null);
 
   const canDrag = !selectMode && !readOnly && !!onReorder && photos.length > 1;
 
@@ -133,17 +135,23 @@ const PhotoGrid: FC<PhotoGridProps> = ({
   }, []);
 
   const endDrag = useCallback(() => {
-    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
-      const reordered = getPreviewPhotos();
-      onReorder?.(reordered);
+    const di = dragIndexRef.current;
+    const oi = overIndexRef.current;
+    if (di !== null && oi !== null && di !== oi) {
+      const result = [...photos];
+      const [dragged] = result.splice(di, 1);
+      result.splice(oi, 0, dragged);
+      onReorder?.(result);
     }
+    dragIndexRef.current = null;
+    overIndexRef.current = null;
     setDragIndex(null);
     setOverIndex(null);
     setIsDragging(false);
     dragStarted.current = false;
     removeGhost();
     clearLongPress();
-  }, [dragIndex, overIndex, getPreviewPhotos, onReorder, removeGhost, clearLongPress]);
+  }, [photos, onReorder, removeGhost, clearLongPress]);
 
   // タッチイベントハンドラ
   const handleTouchStart = useCallback(
@@ -155,6 +163,8 @@ const PhotoGrid: FC<PhotoGridProps> = ({
 
       longPressTimer.current = setTimeout(() => {
         dragStarted.current = true;
+        dragIndexRef.current = index;
+        overIndexRef.current = index;
         setDragIndex(index);
         setOverIndex(index);
         setIsDragging(true);
@@ -180,21 +190,25 @@ const PhotoGrid: FC<PhotoGridProps> = ({
         const dy = touch.clientY - touchStartPos.current.y;
         if (Math.hypot(dx, dy) > DRAG_THRESHOLD) {
           clearLongPress();
+          return;
         }
+        // 閾値内の小さな動きはブラウザのスクロール開始を防止する
+        e.preventDefault();
         return;
       }
 
-      if (!dragStarted.current || dragIndex === null) return;
+      if (!dragStarted.current || dragIndexRef.current === null) return;
 
       e.preventDefault();
       moveGhost(touch.clientX, touch.clientY);
 
       const newOverIndex = findDropIndex(touch.clientX, touch.clientY);
-      if (newOverIndex !== null && newOverIndex !== overIndex) {
+      if (newOverIndex !== null && newOverIndex !== overIndexRef.current) {
+        overIndexRef.current = newOverIndex;
         setOverIndex(newOverIndex);
       }
     },
-    [dragIndex, overIndex, clearLongPress, moveGhost, findDropIndex]
+    [clearLongPress, moveGhost, findDropIndex]
   );
 
   const handleTouchEnd = useCallback(() => {
