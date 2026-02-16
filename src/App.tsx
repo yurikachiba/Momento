@@ -581,6 +581,7 @@ function App() {
           onDelete={handleDelete}
           onToggleAlbum={handleToggleAlbum}
           onUpdateMemo={handleUpdateMemo}
+          onShowToast={showToast}
           readOnly={isReadOnly}
           sharedAlbumId={activeSharedAlbumId}
           activeAlbumId={activeAlbumId}
