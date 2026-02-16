@@ -15,6 +15,7 @@ interface PhotoViewerProps {
   onDelete: (id: string) => void;
   onToggleAlbum: (photoId: string, albumId: string) => void;
   onUpdateMemo: (photoId: string, memo: string) => void;
+  onShowToast: (message: string) => void;
   readOnly?: boolean;
   sharedAlbumId?: string | null;
   activeAlbumId?: string | null;
@@ -72,6 +73,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
   onDelete,
   onToggleAlbum,
   onUpdateMemo,
+  onShowToast,
   readOnly = false,
   sharedAlbumId = null,
   activeAlbumId = null,
@@ -424,22 +426,8 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
       const blob = await fetchBlob();
       const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
       const filename = `${photo.name || 'photo'}.${ext}`;
-      const file = new File([blob], filename, {
-        type: blob.type || 'image/jpeg',
-      });
 
-      // On mobile (iOS/Android), use Share API for reliable save-to-device
-      if (navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file] });
-          return;
-        } catch (e) {
-          if (e instanceof DOMException && e.name === 'AbortError') return;
-          // Share failed, fall through to download link
-        }
-      }
-
-      // Desktop / non-Share fallback: download via blob URL
+      // Download via blob URL
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
@@ -448,6 +436,7 @@ const PhotoViewer: FC<PhotoViewerProps> = ({
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      onShowToast('写真を保存しました');
     } catch {
       // Last resort: open original URL
       window.open(photo.url, '_blank');
