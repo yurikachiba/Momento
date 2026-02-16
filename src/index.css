@@ -1852,6 +1852,41 @@ html.dark .recovery-banner-dismiss {
   word-break: break-all;
 }
 
+.user-id-copyable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.user-id-copyable:active {
+  background: var(--bg-secondary);
+}
+
+.user-id-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.user-id-copyable code {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-id-copy-btn {
+  flex-shrink: 0;
+  font-size: 16px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.user-id-copyable:hover .user-id-copy-btn {
+  opacity: 1;
+}
+
 .settings-hint {
   font-size: 13px;
   color: var(--text-muted);

@@ -20,6 +20,18 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
   const { user, token, logout } = useAuth();
   const [webauthnStatus, setWebauthnStatus] = useState<string>('');
   const [webauthnLoading, setWebauthnLoading] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
+
+  const handleCopyUserId = async () => {
+    if (!user) return;
+    try {
+      await navigator.clipboard.writeText(user.id);
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
 
   const handleLogout = async () => {
     if (confirm('ログアウトしますか？')) {
@@ -108,9 +120,23 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
         <div className="settings-section">
           <p className="settings-section-title">アカウント</p>
           {user && (
-            <div className="user-id-display">
-              <code>{user.displayName || user.username}</code>
-            </div>
+            <>
+              <div className="user-id-display">
+                <code>{user.displayName || user.username}</code>
+              </div>
+              <div className="user-id-display user-id-copyable" onClick={handleCopyUserId}>
+                <span className="user-id-label">ID</span>
+                <code>{user.id}</code>
+                <span className="user-id-copy-btn">
+                  {idCopied ? '✓' : '📋'}
+                </span>
+              </div>
+              {idCopied && (
+                <p className="settings-hint" style={{ color: 'var(--accent)' }}>
+                  コピーしました
+                </p>
+              )}
+            </>
           )}
 
           <button className="settings-btn" onClick={handleSetupWebAuthn} disabled={webauthnLoading}>
