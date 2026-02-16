@@ -25,7 +25,7 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
   const handleCopyUserId = async () => {
     if (!user) return;
     try {
-      await navigator.clipboard.writeText(user.id);
+      await navigator.clipboard.writeText(user.username);
       setIdCopied(true);
       setTimeout(() => setIdCopied(false), 2000);
     } catch {
@@ -126,7 +126,7 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
               </div>
               <div className="user-id-display user-id-copyable" onClick={handleCopyUserId}>
                 <span className="user-id-label">ID</span>
-                <code>{user.id}</code>
+                <code>{user.username}</code>
                 <span className="user-id-copy-btn">
                   {idCopied ? '✓' : '📋'}
                 </span>
