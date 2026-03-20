@@ -289,6 +289,44 @@ app.get('/api/auth/email', getSessionUser, (req, res) => {
   }
 });
 
+// --- パスワード変更 ---
+
+app.post('/api/auth/change-password', getSessionUser, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: '現在のパスワードと新しいパスワードを入力してください' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: '新しいパスワードは4文字以上にしてください' });
+    }
+
+    const db = getDb();
+    const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.userId);
+    if (!user || !user.password_hash) {
+      return res.status(400).json({ error: 'パスワードの変更に失敗しました' });
+    }
+
+    const valid = await verifyPassword(currentPassword, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: '現在のパスワードが間違っています' });
+    }
+
+    const newHash = await hashPassword(newPassword);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.userId);
+
+    // 現在のセッション以外を無効化
+    const authHeader = req.headers['authorization'];
+    const currentToken = authHeader.slice(7);
+    db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(req.userId, currentToken);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ error: 'パスワードの変更に失敗しました' });
+  }
+});
+
 // --- 管理者用パスワードリセット ---
 
 app.get('/api/admin/users', getSessionUser, requireAdmin, (req, res) => {
