@@ -130,8 +130,10 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
         },
         body: JSON.stringify({ username: adminResetUsername, newPassword: adminResetPassword }),
       });
-      const data = await safeJson<{ ok?: boolean; message?: string; error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || 'リセットに失敗しました');
+      if (!res.ok) {
+        const data = await safeJson<{ error?: string }>(res).catch(() => null);
+        throw new Error(data?.error || 'リセットに失敗しました');
+      }
       setAdminResetStatus(`${adminResetUsername} のパスワードをリセットしました: ${adminResetPassword}`);
       setAdminResetUsername('');
       setAdminResetPassword('');

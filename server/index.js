@@ -261,19 +261,29 @@ app.get('/api/auth/me', getSessionUser, (req, res) => {
 // --- Email Update ---
 
 app.patch('/api/auth/email', getSessionUser, (req, res) => {
-  const { email } = req.body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: '有効なメールアドレスを入力してください' });
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: '有効なメールアドレスを入力してください' });
+    }
+    const db = getDb();
+    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, req.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Email update error:', err);
+    res.status(500).json({ error: 'メールアドレスの保存に失敗しました' });
   }
-  const db = getDb();
-  db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, req.userId);
-  res.json({ ok: true });
 });
 
 app.get('/api/auth/email', getSessionUser, (req, res) => {
-  const db = getDb();
-  const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.userId);
-  res.json({ email: user?.email || null });
+  try {
+    const db = getDb();
+    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.userId);
+    res.json({ email: user?.email || null });
+  } catch (err) {
+    console.error('Email fetch error:', err);
+    res.status(500).json({ error: 'メールアドレスの取得に失敗しました' });
+  }
 });
 
 // --- 管理者用パスワードリセット ---
