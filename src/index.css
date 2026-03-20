@@ -2288,6 +2288,122 @@ html.dark .login-hint {
   border-radius: var(--radius-sm);
 }
 
+/* ===== Admin Menu ===== */
+.admin-section-desc {
+  margin-bottom: 8px;
+}
+
+.admin-user-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-user-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.admin-user-item:last-child {
+  border-bottom: none;
+}
+
+.admin-user-item:hover {
+  background: var(--bg-primary);
+}
+
+.admin-user-item.selected {
+  background: var(--accent);
+  color: #fff;
+}
+
+.admin-user-item.selected .admin-user-id,
+.admin-user-item.selected .admin-user-no-email {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.admin-user-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-user-id {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.admin-user-no-email {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(232, 114, 90, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.admin-reset-form {
+  margin-top: 8px;
+}
+
+.admin-reset-target {
+  margin-bottom: 6px;
+}
+
+.admin-reset-btn {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.admin-password-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-password-row .input-name {
+  flex: 1;
+}
+
+.admin-generate-btn {
+  white-space: nowrap;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+
+.admin-reset-result {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(232, 114, 90, 0.08);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.admin-reset-result:hover {
+  background: rgba(232, 114, 90, 0.15);
+}
+
+.admin-reset-status {
+  color: var(--accent);
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.admin-reset-copy-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 /* ===== Select Mode ===== */
 .select-mode-btn {
   display: block;
