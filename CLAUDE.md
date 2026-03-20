@@ -8,7 +8,7 @@
 - PRは自動作成できない環境のため、ブランチをプッシュしたらPR作成用URLを提示する
 
 ## 技術スタック
-- **フロントエンド**: React 19 + TypeScript + Vite + React Router DOM
+- **フロントエンド**: React 19 + TypeScript + Vite + React Router DOM + TanStack Query
 - **バックエンド**: Express.js (ESM) + better-sqlite3
 - **画像保存**: Cloudinary (authenticated URLs)
 - **認証**: パスワード (scrypt) + WebAuthn + メールによるパスワードリセット
