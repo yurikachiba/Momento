@@ -30,6 +30,12 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
   const [adminResetPassword, setAdminResetPassword] = useState('');
   const [adminResetStatus, setAdminResetStatus] = useState('');
   const [adminResetLoading, setAdminResetLoading] = useState(false);
+  const [pwChangeOpen, setPwChangeOpen] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwStatus, setPwStatus] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
 
   // メールアドレス取得
   const { data: emailData } = useQuery({
@@ -141,6 +147,46 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
       setAdminResetStatus(err instanceof Error ? err.message : 'リセットに失敗しました');
     } finally {
       setAdminResetLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwCurrent || !pwNew) {
+      setPwStatus('現在のパスワードと新しいパスワードを入力してください');
+      return;
+    }
+    if (pwNew.length < 4) {
+      setPwStatus('新しいパスワードは4文字以上にしてください');
+      return;
+    }
+    if (pwNew !== pwConfirm) {
+      setPwStatus('新しいパスワードが一致しません');
+      return;
+    }
+    setPwLoading(true);
+    setPwStatus('');
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
+      });
+      if (!res.ok) {
+        const data = await safeJson<{ error?: string }>(res).catch(() => null);
+        throw new Error(data?.error || 'パスワードの変更に失敗しました');
+      }
+      setPwStatus('パスワードを変更しました');
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+      setTimeout(() => { setPwChangeOpen(false); setPwStatus(''); }, 2000);
+    } catch (err) {
+      setPwStatus(err instanceof Error ? err.message : 'パスワードの変更に失敗しました');
+    } finally {
+      setPwLoading(false);
     }
   };
 
@@ -316,6 +362,57 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
             <p className="settings-hint" style={{ marginTop: '8px', color: 'var(--accent)' }}>
               {webauthnStatus}
             </p>
+          )}
+
+          <button className="settings-btn" onClick={() => { setPwChangeOpen(!pwChangeOpen); setPwStatus(''); }} style={{ marginTop: '8px' }}>
+            <span className="settings-btn-icon">🔑</span>
+            <span className="settings-btn-text">
+              <strong>パスワードを変更</strong>
+              <small>現在のパスワードを使って変更する</small>
+            </span>
+          </button>
+          {pwChangeOpen && (
+            <div className="settings-password-change" style={{ marginTop: '8px' }}>
+              <input
+                type="password"
+                className="input-name settings-email-input"
+                placeholder="現在のパスワード"
+                value={pwCurrent}
+                onChange={(e) => setPwCurrent(e.target.value)}
+                autoComplete="current-password"
+              />
+              <input
+                type="password"
+                className="input-name settings-email-input"
+                placeholder="新しいパスワード（4文字以上）"
+                value={pwNew}
+                onChange={(e) => setPwNew(e.target.value)}
+                autoComplete="new-password"
+                style={{ marginTop: '6px' }}
+              />
+              <input
+                type="password"
+                className="input-name settings-email-input"
+                placeholder="新しいパスワード（確認）"
+                value={pwConfirm}
+                onChange={(e) => setPwConfirm(e.target.value)}
+                autoComplete="new-password"
+                style={{ marginTop: '6px' }}
+              />
+              <button
+                className="btn-primary"
+                onClick={handleChangePassword}
+                disabled={pwLoading || !pwCurrent || !pwNew || !pwConfirm}
+                style={{ marginTop: '8px', width: '100%' }}
+              >
+                {pwLoading ? '変更中…' : 'パスワードを変更'}
+              </button>
+              {pwStatus && (
+                <p className="settings-hint" style={{ marginTop: '4px', color: 'var(--accent)' }}>
+                  {pwStatus}
+                </p>
+              )}
+            </div>
           )}
 
           <button className="settings-btn" onClick={handleLogout} style={{ marginTop: '8px' }}>
