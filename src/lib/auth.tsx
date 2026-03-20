@@ -13,7 +13,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string, displayName: string) => Promise<void>;
+  register: (username: string, password: string, displayName: string, email?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -74,11 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('momento-user', JSON.stringify(data.user));
   }, []);
 
-  const register = useCallback(async (username: string, password: string, displayName: string) => {
+  const register = useCallback(async (username: string, password: string, displayName: string, email?: string) => {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, displayName }),
+      body: JSON.stringify({ username, password, displayName, email }),
     });
     if (!res.ok) {
       const data = await safeJson<{ error?: string }>(res).catch(() => null);

@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [webauthnAvailable, setWebauthnAvailable] = useState(false);
@@ -49,7 +50,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (isRegister) {
-        await register(username, password, displayName || username);
+        await register(username, password, displayName || username, email || undefined);
       } else {
         await login(username, password);
       }
@@ -148,6 +149,22 @@ export default function LoginPage() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 autoComplete="name"
               />
+            </div>
+          )}
+
+          {isRegister && (
+            <div className="login-field">
+              <label htmlFor="email" className="login-label">メールアドレス（任意）</label>
+              <input
+                id="email"
+                type="email"
+                className="input-name"
+                placeholder="例: mama@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+              />
+              <p className="login-hint">パスワードを忘れた時のリセットに使います</p>
             </div>
           )}
 
