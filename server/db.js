@@ -147,6 +147,18 @@ export function initDb() {
     db.exec("ALTER TABLE users ADD COLUMN email TEXT DEFAULT NULL");
   }
 
+  // Migration: add is_admin column to users if missing
+  const usersColInfo2 = db.pragma('table_info(users)');
+  const userCols2 = usersColInfo2.map(c => c.name);
+  if (!userCols2.includes('is_admin')) {
+    db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0");
+    // 最初に登録されたユーザーを管理者にする
+    const firstUser = db.prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1').get();
+    if (firstUser) {
+      db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(firstUser.id);
+    }
+  }
+
   // Migration: add position columns if missing (for existing databases)
   const photosInfo = db.pragma('table_info(photos)');
   const photoCols = photosInfo.map(c => c.name);

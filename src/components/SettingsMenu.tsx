@@ -26,6 +26,11 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
   const [emailEditing, setEmailEditing] = useState(false);
   const [emailStatus, setEmailStatus] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<{ id: string; username: string; displayName: string; email: string | null }[]>([]);
+  const [adminResetUsername, setAdminResetUsername] = useState('');
+  const [adminResetPassword, setAdminResetPassword] = useState('');
+  const [adminResetStatus, setAdminResetStatus] = useState('');
+  const [adminResetLoading, setAdminResetLoading] = useState(false);
 
   // メールアドレス取得
   useState(() => {
@@ -71,6 +76,61 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
       setEmailStatus(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
       setEmailLoading(false);
+    }
+  };
+
+  const generatePassword = () => {
+    const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+    let pw = '';
+    for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    setAdminResetPassword(pw);
+  };
+
+  // 管理者の場合、ユーザー一覧を読み込む
+  useState(() => {
+    if (!token || !user?.isAdmin) return;
+    fetch('/api/admin/users', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setAdminUsers(data);
+      })
+      .catch(() => {});
+  });
+
+  const handleAdminResetPassword = async () => {
+    if (!adminResetUsername || !adminResetPassword) {
+      setAdminResetStatus('ユーザー名とパスワードを入力してください');
+      return;
+    }
+    if (adminResetPassword.length < 4) {
+      setAdminResetStatus('パスワードは4文字以上にしてください');
+      return;
+    }
+    if (!confirm(`@${adminResetUsername} のパスワードをリセットしますか？\n既存のセッションは全て無効化されます。`)) {
+      return;
+    }
+    setAdminResetLoading(true);
+    setAdminResetStatus('');
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username: adminResetUsername, newPassword: adminResetPassword }),
+      });
+      const data = await safeJson<{ ok?: boolean; message?: string; error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || 'リセットに失敗しました');
+      setAdminResetStatus(`${adminResetUsername} のパスワードをリセットしました: ${adminResetPassword}`);
+      setAdminResetUsername('');
+      setAdminResetPassword('');
+    } catch (err) {
+      setAdminResetStatus(err instanceof Error ? err.message : 'リセットに失敗しました');
+    } finally {
+      setAdminResetLoading(false);
     }
   };
 
@@ -256,6 +316,68 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
             </span>
           </button>
         </div>
+
+        {user?.isAdmin && (
+          <div className="settings-section">
+            <p className="settings-section-title">管理者メニュー</p>
+            <p className="settings-hint admin-section-desc">
+              ユーザーのパスワードをリセット
+            </p>
+            <div className="admin-user-list">
+              {adminUsers.filter(u => u.id !== user.id).map(u => (
+                <div
+                  key={u.id}
+                  className={`admin-user-item${adminResetUsername === u.username ? ' selected' : ''}`}
+                  onClick={() => { setAdminResetUsername(prev => prev === u.username ? '' : u.username); setAdminResetPassword(''); setAdminResetStatus(''); }}
+                >
+                  <span className="admin-user-name">{u.displayName}</span>
+                  <span className="admin-user-id">@{u.username}</span>
+                  {!u.email && <span className="admin-user-no-email">メール未登録</span>}
+                </div>
+              ))}
+            </div>
+            {adminResetUsername && (
+              <div className="admin-reset-form">
+                <p className="settings-hint admin-reset-target">
+                  <strong>@{adminResetUsername}</strong> の新しいパスワード
+                </p>
+                <div className="admin-password-row">
+                  <input
+                    type="text"
+                    className="input-name settings-email-input"
+                    placeholder="新しいパスワード（4文字以上）"
+                    value={adminResetPassword}
+                    onChange={(e) => setAdminResetPassword(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <button
+                    className="btn-secondary admin-generate-btn"
+                    onClick={generatePassword}
+                    type="button"
+                  >
+                    自動生成
+                  </button>
+                </div>
+                <button
+                  className="btn-primary admin-reset-btn"
+                  onClick={handleAdminResetPassword}
+                  disabled={adminResetLoading || adminResetPassword.length < 4}
+                >
+                  {adminResetLoading ? '処理中…' : 'パスワードをリセット'}
+                </button>
+              </div>
+            )}
+            {adminResetStatus && (
+              <div
+                className="admin-reset-result"
+                onClick={() => navigator.clipboard.writeText(adminResetStatus).catch(() => {})}
+              >
+                <p className="settings-hint admin-reset-status">{adminResetStatus}</p>
+                <span className="admin-reset-copy-hint">タップしてコピー</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="settings-section">
           <p className="settings-section-title">アプリ情報</p>

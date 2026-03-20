@@ -145,7 +145,7 @@ function getSessionUser(req, res, next) {
   const token = authHeader.slice(7);
   const db = getDb();
   const session = db.prepare(
-    'SELECT s.user_id, u.username, u.display_name FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ? AND s.expires_at > ?'
+    'SELECT s.user_id, u.username, u.display_name, u.is_admin FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ? AND s.expires_at > ?'
   ).get(token, Date.now());
   if (!session) {
     return res.status(401).json({ error: 'セッションが無効です' });
@@ -153,6 +153,14 @@ function getSessionUser(req, res, next) {
   req.userId = session.user_id;
   req.userName = session.username;
   req.userDisplayName = session.display_name;
+  req.isAdmin = !!session.is_admin;
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.isAdmin) {
+    return res.status(403).json({ error: '管理者権限が必要です' });
+  }
   next();
 }
 
@@ -194,7 +202,7 @@ app.post('/api/auth/register', async (req, res) => {
     const session = createSession(id);
     res.json({
       token: session.token,
-      user: { id, username, displayName: displayName || username },
+      user: { id, username, displayName: displayName || username, isAdmin: false },
     });
   } catch (err) {
     console.error('Register error:', err);
@@ -224,7 +232,7 @@ app.post('/api/auth/login', async (req, res) => {
     const session = createSession(user.id);
     res.json({
       token: session.token,
-      user: { id: user.id, username: user.username, displayName: user.display_name },
+      user: { id: user.id, username: user.username, displayName: user.display_name, isAdmin: !!user.is_admin },
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -246,7 +254,7 @@ app.post('/api/auth/logout', (req, res) => {
 // Check session
 app.get('/api/auth/me', getSessionUser, (req, res) => {
   res.json({
-    user: { id: req.userId, username: req.userName, displayName: req.userDisplayName },
+    user: { id: req.userId, username: req.userName, displayName: req.userDisplayName, isAdmin: req.isAdmin },
   });
 });
 
@@ -266,6 +274,49 @@ app.get('/api/auth/email', getSessionUser, (req, res) => {
   const db = getDb();
   const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.userId);
   res.json({ email: user?.email || null });
+});
+
+// --- 管理者用パスワードリセット ---
+
+app.get('/api/admin/users', getSessionUser, requireAdmin, (req, res) => {
+  const db = getDb();
+  const users = db.prepare('SELECT id, username, display_name, email, created_at FROM users ORDER BY created_at ASC').all();
+  res.json(users.map(u => ({
+    id: u.id,
+    username: u.username,
+    displayName: u.display_name,
+    email: u.email || null,
+    createdAt: u.created_at,
+  })));
+});
+
+app.post('/api/admin/reset-password', getSessionUser, requireAdmin, async (req, res) => {
+  try {
+    const { username, newPassword } = req.body;
+    if (!username || !newPassword) {
+      return res.status(400).json({ error: 'ユーザー名と新しいパスワードを入力してください' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: 'パスワードは4文字以上にしてください' });
+    }
+
+    const db = getDb();
+    const user = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    if (!user) {
+      return res.status(404).json({ error: 'ユーザーが見つかりません' });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+
+    // セキュリティのため既存セッションを全て無効化
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+
+    res.json({ ok: true, message: `${username} のパスワードをリセットしました` });
+  } catch (err) {
+    console.error('Admin password reset error:', err);
+    res.status(500).json({ error: 'パスワードリセットに失敗しました' });
+  }
 });
 
 // --- Password Reset ---
