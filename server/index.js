@@ -70,6 +70,9 @@ function getMailTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 }
 
@@ -349,11 +352,11 @@ app.post('/api/auth/password-reset/request', async (req, res) => {
       'INSERT INTO password_reset_tokens (id, user_id, token, expires_at, used, created_at) VALUES (?, ?, ?, ?, 0, ?)'
     ).run(id, user.id, resetCode, expiresAt, now);
 
-    // メール送信
+    // メール送信（レスポンスをブロックしないよう非同期で実行）
     const transporter = getMailTransporter();
     if (transporter) {
       const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
-      await transporter.sendMail({
+      transporter.sendMail({
         from: `MomentoLite <${fromAddress}>`,
         to: user.email,
         subject: 'パスワードリセット - MomentoLite',
@@ -369,6 +372,8 @@ app.post('/api/auth/password-reset/request', async (req, res) => {
             <p style="color: #999; font-size: 13px;">心当たりがない場合は、このメールを無視してください。</p>
           </div>
         `,
+      }).catch(err => {
+        console.error('パスワードリセットメール送信失敗:', err.message);
       });
     }
 
