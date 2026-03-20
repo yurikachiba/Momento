@@ -1,4 +1,5 @@
 import { useState, type FC } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../lib/auth';
 import { safeJson } from '../lib/api';
 import { startRegistration } from '@simplewebauthn/browser';
@@ -18,65 +19,73 @@ function formatBytes(bytes: number): string {
 
 const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
   const { user, token, logout } = useAuth();
+  const queryClient = useQueryClient();
   const [webauthnStatus, setWebauthnStatus] = useState<string>('');
   const [webauthnLoading, setWebauthnLoading] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
-  const [email, setEmail] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [emailEditing, setEmailEditing] = useState(false);
   const [emailStatus, setEmailStatus] = useState('');
-  const [emailLoading, setEmailLoading] = useState(false);
-  const [adminUsers, setAdminUsers] = useState<{ id: string; username: string; displayName: string; email: string | null }[]>([]);
   const [adminResetUsername, setAdminResetUsername] = useState('');
   const [adminResetPassword, setAdminResetPassword] = useState('');
   const [adminResetStatus, setAdminResetStatus] = useState('');
   const [adminResetLoading, setAdminResetLoading] = useState(false);
 
   // メールアドレス取得
-  useState(() => {
-    if (!token) return;
-    fetch('/api/auth/email', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data: { email: string | null }) => {
-        if (data.email) {
-          setEmail(data.email);
-          setEmailInput(data.email);
-        }
-      })
-      .catch(() => {});
+  const { data: emailData } = useQuery({
+    queryKey: ['email'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth/email', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { email: string | null };
+      return data.email || '';
+    },
+    enabled: !!token,
   });
+  const email = emailData ?? '';
 
-  const handleSaveEmail = async () => {
-    if (!emailInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
-      setEmailStatus('有効なメールアドレスを入力してください');
-      return;
-    }
-    setEmailLoading(true);
-    setEmailStatus('');
-    try {
+  // emailInputの初期値をサーバーから取得した値で設定
+  const [emailInitialized, setEmailInitialized] = useState(false);
+  if (email && !emailInitialized) {
+    setEmailInput(email);
+    setEmailInitialized(true);
+  }
+
+  // メールアドレス保存
+  const saveEmailMutation = useMutation({
+    mutationFn: async (newEmail: string) => {
       const res = await fetch('/api/auth/email', {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: emailInput }),
+        body: JSON.stringify({ email: newEmail }),
       });
       if (!res.ok) {
         const data = await safeJson<{ error?: string }>(res).catch(() => null);
         throw new Error(data?.error || '保存に失敗しました');
       }
-      setEmail(emailInput);
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['email'], emailInput);
       setEmailEditing(false);
       setEmailStatus('メールアドレスを保存しました');
       setTimeout(() => setEmailStatus(''), 3000);
-    } catch (err) {
+    },
+    onError: (err) => {
       setEmailStatus(err instanceof Error ? err.message : '保存に失敗しました');
-    } finally {
-      setEmailLoading(false);
+    },
+  });
+
+  const handleSaveEmail = () => {
+    if (!emailInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+      setEmailStatus('有効なメールアドレスを入力してください');
+      return;
     }
+    setEmailStatus('');
+    saveEmailMutation.mutate(emailInput);
   };
 
   const generatePassword = () => {
@@ -87,16 +96,15 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
   };
 
   // 管理者の場合、ユーザー一覧を読み込む
-  useState(() => {
-    if (!token || !user?.isAdmin) return;
-    fetch('/api/admin/users', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setAdminUsers(data);
-      })
-      .catch(() => {});
+  const { data: adminUsers = [] } = useQuery<{ id: string; username: string; displayName: string; email: string | null }[]>({
+    queryKey: ['adminUsers'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/users', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.json();
+    },
+    enabled: !!token && !!user?.isAdmin,
   });
 
   const handleAdminResetPassword = async () => {
@@ -266,9 +274,9 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
                   <button
                     className="btn-primary settings-email-save"
                     onClick={handleSaveEmail}
-                    disabled={emailLoading}
+                    disabled={saveEmailMutation.isPending}
                   >
-                    {emailLoading ? '保存中…' : '保存'}
+                    {saveEmailMutation.isPending ? '保存中…' : '保存'}
                   </button>
                   <button
                     className="btn-secondary settings-email-cancel"
