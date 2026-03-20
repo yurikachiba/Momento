@@ -185,6 +185,12 @@ export default function LoginPage() {
               顔認証 / 生体認証でログイン
             </button>
           )}
+
+          {!isRegister && (
+            <div className="login-forgot">
+              <Link to="/reset-password">パスワードを忘れた方</Link>
+            </div>
+          )}
         </form>
 
         <div className="login-switch">

@@ -2183,6 +2183,101 @@ html.dark .recovery-banner-dismiss {
   color: var(--accent-hover);
 }
 
+/* ===== Password Reset ===== */
+.login-forgot {
+  text-align: center;
+  margin-top: 12px;
+}
+
+.login-forgot a {
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.login-forgot a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.reset-message {
+  color: var(--accent);
+  font-size: 14px;
+  text-align: center;
+  padding: 8px;
+  background: rgba(66, 153, 225, 0.08);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+
+.reset-code-input {
+  text-align: center;
+  font-size: 24px !important;
+  letter-spacing: 8px;
+  font-weight: 700;
+}
+
+/* ===== Settings Email ===== */
+.settings-email-section {
+  margin-bottom: 12px;
+}
+
+.settings-email-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.settings-email-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-email-display:hover {
+  background: var(--border);
+}
+
+.settings-email-value {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.settings-email-edit-btn {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.settings-email-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-email-input {
+  font-size: 14px !important;
+}
+
+.settings-email-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-email-save,
+.settings-email-cancel {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+}
+
 /* ===== Select Mode ===== */
 .select-mode-btn {
   display: block;

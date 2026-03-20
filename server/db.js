@@ -124,9 +124,28 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_webauthn_user ON webauthn_credentials(user_id);
     CREATE INDEX IF NOT EXISTS idx_webauthn_credential_id ON webauthn_credentials(credential_id);
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      expires_at INTEGER NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_album_shares_album ON album_shares(album_id);
     CREATE INDEX IF NOT EXISTS idx_album_shares_shared_with ON album_shares(shared_with_user_id);
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
   `);
+
+  // Migration: add email column to users if missing
+  const usersColInfo = db.pragma('table_info(users)');
+  const userCols = usersColInfo.map(c => c.name);
+  if (!userCols.includes('email')) {
+    db.exec("ALTER TABLE users ADD COLUMN email TEXT DEFAULT NULL");
+  }
 
   // Migration: add position columns if missing (for existing databases)
   const photosInfo = db.pragma('table_info(photos)');
