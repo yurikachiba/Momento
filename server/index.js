@@ -158,10 +158,10 @@ function getSessionUser(req, res, next) {
 
 // --- Auth Routes ---
 
-// Register (username + password only, no email)
+// Register (username + password, email は任意)
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, password, displayName } = req.body;
+    const { username, password, displayName, email } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'ユーザー名とパスワードは必須です' });
     }
@@ -174,6 +174,9 @@ app.post('/api/auth/register', async (req, res) => {
     if (password.length < 4) {
       return res.status(400).json({ error: 'パスワードは4文字以上にしてください' });
     }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: '有効なメールアドレスを入力してください' });
+    }
 
     const db = getDb();
     const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
@@ -185,8 +188,8 @@ app.post('/api/auth/register', async (req, res) => {
     const passwordHash = await hashPassword(password);
     const now = Date.now();
     db.prepare(
-      'INSERT INTO users (id, username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, username, passwordHash, displayName || username, now);
+      'INSERT INTO users (id, username, password_hash, display_name, created_at, email) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(id, username, passwordHash, displayName || username, now, email || null);
 
     const session = createSession(id);
     res.json({

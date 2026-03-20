@@ -28,6 +28,7 @@ import {
   reorderPhotos,
 } from './lib/api';
 import { sanitizeFileName } from './lib/sanitize';
+import { useAuth } from './lib/auth';
 import type { Photo, Album, SharedAlbum } from './types/photo';
 
 function App() {
@@ -56,6 +57,25 @@ function App() {
   } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [showBulkAlbumPicker, setShowBulkAlbumPicker] = useState(false);
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(() => {
+    return localStorage.getItem('momento-email-banner-dismissed') === 'true';
+  });
+  const [hasEmail, setHasEmail] = useState<boolean | null>(null);
+
+  const { token } = useAuth();
+
+  // メール未登録チェック
+  useEffect(() => {
+    if (!token || emailBannerDismissed) return;
+    fetch('/api/auth/email', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data: { email: string | null }) => {
+        setHasEmail(!!data.email);
+      })
+      .catch(() => {});
+  }, [token, emailBannerDismissed]);
 
   const showToast = useCallback((message: string) => {
     setToast(null);
@@ -425,6 +445,32 @@ function App() {
         </div>
       )}
 
+      {/* メール未登録の注意バナー */}
+      {!emailBannerDismissed && hasEmail === false && (
+        <div className="email-reminder-banner">
+          <span className="email-reminder-text">
+            メールアドレスが未登録です。パスワードを忘れるとログインできなくなります。
+          </span>
+          <div className="email-reminder-actions">
+            <button
+              className="email-reminder-btn"
+              onClick={() => setShowSettings(true)}
+            >
+              登録する
+            </button>
+            <button
+              className="email-reminder-dismiss"
+              onClick={() => {
+                setEmailBannerDismissed(true);
+                localStorage.setItem('momento-email-banner-dismissed', 'true');
+              }}
+            >
+              後で
+            </button>
+          </div>
+        </div>
+      )}
+
       {selectMode && !isReadOnly && (
         <div className="select-toolbar">
           <button className="select-toolbar-close" onClick={handleExitSelectMode}>
@@ -498,7 +544,18 @@ function App() {
       {!selectMode && !isReadOnly && <AddPhotoButton onFiles={handleAddFiles} />}
 
       {showSettings && (
-        <SettingsMenu onClose={() => setShowSettings(false)} usage={usage} />
+        <SettingsMenu onClose={() => {
+          setShowSettings(false);
+          // 設定画面でメール登録した可能性があるので再チェック
+          if (!emailBannerDismissed && token) {
+            fetch('/api/auth/email', {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+              .then((res) => res.json())
+              .then((data: { email: string | null }) => setHasEmail(!!data.email))
+              .catch(() => {});
+          }
+        }} usage={usage} />
       )}
 
       {showPicker && activeAlbumId && (

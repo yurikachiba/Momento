@@ -2144,6 +2144,16 @@ html.dark .recovery-banner-dismiss {
   margin-bottom: 8px;
 }
 
+.login-hint {
+  font-size: 12px;
+  color: #718096;
+  margin-top: 4px;
+}
+
+html.dark .login-hint {
+  color: #a0aec0;
+}
+
 .login-submit {
   width: 100%;
   margin-top: 8px;
@@ -2544,6 +2554,65 @@ html.dark .shared-banner-text {
 html.dark .shared-banner-hint {
   color: #a0aec0;
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* ===== メール未登録バナー ===== */
+.email-reminder-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #fffbeb;
+  border-bottom: 1px solid #f6c547;
+  font-size: 14px;
+  flex-wrap: wrap;
+}
+
+html.dark .email-reminder-banner {
+  background: #44370a;
+  border-bottom-color: #b7791f;
+}
+
+.email-reminder-text {
+  flex: 1;
+  color: #744210;
+  font-weight: 500;
+  min-width: 200px;
+}
+
+html.dark .email-reminder-text {
+  color: #fbd38d;
+}
+
+.email-reminder-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.email-reminder-btn {
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.email-reminder-dismiss {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: transparent;
+  color: #a0855c;
+  border: 1px solid #d4a850;
+  cursor: pointer;
+}
+
+html.dark .email-reminder-dismiss {
+  color: #d4a850;
+  border-color: #b7791f;
 }
 
 /* ===== Shared Album Tab ===== */
