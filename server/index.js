@@ -219,7 +219,8 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const db = getDb();
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    // ユーザー名またはメールアドレスでログインできるようにする
+    const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(username, username);
     if (!user || !user.password_hash) {
       return res.status(401).json({ error: 'ユーザー名またはパスワードが間違っています' });
     }

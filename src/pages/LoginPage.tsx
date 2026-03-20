@@ -123,12 +123,12 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="login-field">
-            <label htmlFor="username" className="login-label">ユーザー名</label>
+            <label htmlFor="username" className="login-label">{isRegister ? 'ユーザー名' : 'ユーザー名またはメールアドレス'}</label>
             <input
               id="username"
               type="text"
               className="input-name"
-              placeholder="例: mama"
+              placeholder={isRegister ? '例: mama' : '例: mama または mama@example.com'}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
