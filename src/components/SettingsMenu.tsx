@@ -21,6 +21,58 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
   const [webauthnStatus, setWebauthnStatus] = useState<string>('');
   const [webauthnLoading, setWebauthnLoading] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [emailEditing, setEmailEditing] = useState(false);
+  const [emailStatus, setEmailStatus] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  // メールアドレス取得
+  useState(() => {
+    if (!token) return;
+    fetch('/api/auth/email', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data: { email: string | null }) => {
+        if (data.email) {
+          setEmail(data.email);
+          setEmailInput(data.email);
+        }
+      })
+      .catch(() => {});
+  });
+
+  const handleSaveEmail = async () => {
+    if (!emailInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+      setEmailStatus('有効なメールアドレスを入力してください');
+      return;
+    }
+    setEmailLoading(true);
+    setEmailStatus('');
+    try {
+      const res = await fetch('/api/auth/email', {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: emailInput }),
+      });
+      if (!res.ok) {
+        const data = await safeJson<{ error?: string }>(res).catch(() => null);
+        throw new Error(data?.error || '保存に失敗しました');
+      }
+      setEmail(emailInput);
+      setEmailEditing(false);
+      setEmailStatus('メールアドレスを保存しました');
+      setTimeout(() => setEmailStatus(''), 3000);
+    } catch (err) {
+      setEmailStatus(err instanceof Error ? err.message : '保存に失敗しました');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
 
   const handleCopyUserId = async () => {
     if (!user) return;
@@ -138,6 +190,48 @@ const SettingsMenu: FC<SettingsMenuProps> = ({ onClose, usage }) => {
               )}
             </>
           )}
+
+          <div className="settings-email-section">
+            <p className="settings-email-label">メールアドレス（パスワードリセット用）</p>
+            {emailEditing ? (
+              <div className="settings-email-edit">
+                <input
+                  type="email"
+                  className="input-name settings-email-input"
+                  placeholder="example@mail.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                />
+                <div className="settings-email-actions">
+                  <button
+                    className="btn-primary settings-email-save"
+                    onClick={handleSaveEmail}
+                    disabled={emailLoading}
+                  >
+                    {emailLoading ? '保存中…' : '保存'}
+                  </button>
+                  <button
+                    className="btn-secondary settings-email-cancel"
+                    onClick={() => { setEmailEditing(false); setEmailInput(email); setEmailStatus(''); }}
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-email-display" onClick={() => setEmailEditing(true)}>
+                <span className="settings-email-value">
+                  {email || '未設定'}
+                </span>
+                <span className="settings-email-edit-btn">編集</span>
+              </div>
+            )}
+            {emailStatus && (
+              <p className="settings-hint" style={{ marginTop: '4px', color: 'var(--accent)' }}>
+                {emailStatus}
+              </p>
+            )}
+          </div>
 
           <button className="settings-btn" onClick={handleSetupWebAuthn} disabled={webauthnLoading}>
             <span className="settings-btn-icon">

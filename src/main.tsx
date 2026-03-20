@@ -5,6 +5,7 @@ import './index.css';
 import App from './App';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import PasswordResetPage from './pages/PasswordResetPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import SitemapPage from './pages/SitemapPage';
@@ -52,6 +53,14 @@ function AppRoutes() {
         element={
           <PublicRoute>
             <LoginPage />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <PublicRoute>
+            <PasswordResetPage />
           </PublicRoute>
         }
       />

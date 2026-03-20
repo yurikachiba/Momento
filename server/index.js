@@ -7,6 +7,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { initDb, getDb } from './db.js';
+import nodemailer from 'nodemailer';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -56,6 +57,20 @@ if (process.env.NODE_ENV !== 'production') {
 
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '..', 'dist')));
+}
+
+// --- Email Config ---
+function getMailTransporter() {
+  if (!process.env.SMTP_HOST) return null;
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
 }
 
 // --- WebAuthn Config ---
@@ -231,6 +246,139 @@ app.get('/api/auth/me', getSessionUser, (req, res) => {
     user: { id: req.userId, username: req.userName, displayName: req.userDisplayName },
   });
 });
+
+// --- Email Update ---
+
+app.patch('/api/auth/email', getSessionUser, (req, res) => {
+  const { email } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: '有効なメールアドレスを入力してください' });
+  }
+  const db = getDb();
+  db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, req.userId);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/email', getSessionUser, (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.userId);
+  res.json({ email: user?.email || null });
+});
+
+// --- Password Reset ---
+
+app.post('/api/auth/password-reset/request', async (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!username) {
+      return res.status(400).json({ error: 'ユーザー名を入力してください' });
+    }
+
+    const db = getDb();
+    const user = db.prepare('SELECT id, email FROM users WHERE username = ?').get(username);
+
+    // セキュリティ: ユーザーが存在しない場合も同じレスポンスを返す
+    if (!user || !user.email) {
+      return res.json({ ok: true, message: 'メールアドレスが登録されている場合、リセットメールを送信しました' });
+    }
+
+    // 6桁のリセットコード生成
+    const resetCode = String(crypto.randomInt(100000, 999999));
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    const expiresAt = now + 15 * 60 * 1000; // 15分有効
+
+    // 既存の未使用トークンを無効化
+    db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ? AND used = 0').run(user.id);
+
+    db.prepare(
+      'INSERT INTO password_reset_tokens (id, user_id, token, expires_at, used, created_at) VALUES (?, ?, ?, ?, 0, ?)'
+    ).run(id, user.id, resetCode, expiresAt, now);
+
+    // メール送信
+    const transporter = getMailTransporter();
+    if (transporter) {
+      const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
+      await transporter.sendMail({
+        from: `MomentoLite <${fromAddress}>`,
+        to: user.email,
+        subject: 'パスワードリセット - MomentoLite',
+        text: `パスワードリセットのコード: ${resetCode}\n\nこのコードは15分間有効です。\n\n心当たりがない場合は、このメールを無視してください。`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 24px;">
+            <h2 style="color: #333; margin-bottom: 16px;">パスワードリセット</h2>
+            <p style="color: #666; margin-bottom: 24px;">以下のコードを入力してパスワードを再設定してください。</p>
+            <div style="background: #f5f5f5; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${resetCode}</span>
+            </div>
+            <p style="color: #999; font-size: 13px;">このコードは15分間有効です。</p>
+            <p style="color: #999; font-size: 13px;">心当たりがない場合は、このメールを無視してください。</p>
+          </div>
+        `,
+      });
+    }
+
+    res.json({ ok: true, message: 'メールアドレスが登録されている場合、リセットメールを送信しました' });
+  } catch (err) {
+    console.error('Password reset request error:', err);
+    res.status(500).json({ error: 'パスワードリセットの処理に失敗しました' });
+  }
+});
+
+app.post('/api/auth/password-reset/verify', async (req, res) => {
+  try {
+    const { username, code, newPassword } = req.body;
+    if (!username || !code || !newPassword) {
+      return res.status(400).json({ error: '必要な情報をすべて入力してください' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: 'パスワードは4文字以上にしてください' });
+    }
+
+    const db = getDb();
+    const user = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    if (!user) {
+      return res.status(400).json({ error: 'リセットコードが無効です' });
+    }
+
+    const resetToken = db.prepare(
+      'SELECT * FROM password_reset_tokens WHERE user_id = ? AND token = ? AND used = 0 AND expires_at > ?'
+    ).get(user.id, code, Date.now());
+
+    if (!resetToken) {
+      return res.status(400).json({ error: 'リセットコードが無効または期限切れです' });
+    }
+
+    // パスワード更新
+    const passwordHash = await hashPassword(newPassword);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+
+    // トークンを使用済みに
+    db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(resetToken.id);
+
+    // 既存セッションを全て無効化（セキュリティ）
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+
+    // 新しいセッションを作成
+    const session = createSession(user.id);
+    const userData = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(user.id);
+
+    res.json({
+      ok: true,
+      token: session.token,
+      user: { id: user.id, username: userData.username, displayName: userData.display_name },
+    });
+  } catch (err) {
+    console.error('Password reset verify error:', err);
+    res.status(500).json({ error: 'パスワードのリセットに失敗しました' });
+  }
+});
+
+// 期限切れリセットトークンのクリーンアップ
+function cleanExpiredResetTokens() {
+  const db = getDb();
+  db.prepare('DELETE FROM password_reset_tokens WHERE expires_at < ? OR used = 1').run(Date.now());
+}
 
 // --- WebAuthn Routes ---
 
@@ -974,6 +1122,7 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize DB
 initDb();
 cleanExpiredSessions();
+cleanExpiredResetTokens();
 
 // Export for Vercel serverless
 export default app;
